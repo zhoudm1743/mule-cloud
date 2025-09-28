@@ -1,0 +1,48 @@
+# 服务器配置
+server:
+  name: "mule-cloud-user-service"
+  host: "0.0.0.0"
+  port: 8001
+  mode: "debug"  # debug, release, test
+  read_timeout: "30s"
+  write_timeout: "30s"
+
+# 数据库配置
+database:
+  mongodb:
+    uri: "mongodb://admin:password123@localhost:27017/mule_cloud?authSource=admin"
+    database: "mule_cloud"
+    username: "admin"
+    password: "password123"
+
+# Redis配置
+redis:
+  host: "localhost"
+  port: 6379
+  password: "redis123"
+  db: 0
+
+# JWT配置
+jwt:
+  secret_key: "mule-cloud-secret-key-change-in-production"
+  access_token_ttl: "24h"
+  refresh_token_ttl: "168h"  # 7 days
+  issuer: "mule-cloud"
+
+# Consul配置
+consul:
+  address: "localhost:8500"
+  scheme: "http"
+
+# NATS配置
+nats:
+  url: "nats://localhost:4222"
+
+# 日志配置
+log:
+  level: "info"        # debug, info, warn, error
+  format: "json"       # json, text
+  output: "stdout"     # stdout, file, both
+  max_size: 100        # MB
+  max_backups: 3
+  max_age: 28          # days
