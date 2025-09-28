@@ -518,7 +518,7 @@ func (h *UserHandler) ListUsers(c *gin.Context) {
 	meta := models.Meta{
 		Page:       req.Page,
 		PageSize:   req.PageSize,
-		Total:      int(total),
+		Total:      total,
 		TotalPages: totalPages,
 	}
 

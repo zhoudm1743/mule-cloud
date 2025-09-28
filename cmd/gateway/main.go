@@ -34,12 +34,12 @@ type ServiceRegistry struct {
 func LoadServiceRegistry() *ServiceRegistry {
 	return &ServiceRegistry{
 		UserService:         getEnv("USER_SERVICE_URL", "http://localhost:8001"),
-		OrderService:        getEnv("ORDER_SERVICE_URL", "http://localhost:8002"),
-		ProductionService:   getEnv("PRODUCTION_SERVICE_URL", "http://localhost:8003"),
-		TimesheetService:    getEnv("TIMESHEET_SERVICE_URL", "http://localhost:8004"),
-		PayrollService:      getEnv("PAYROLL_SERVICE_URL", "http://localhost:8005"),
-		ReportService:       getEnv("REPORT_SERVICE_URL", "http://localhost:8006"),
-		MasterDataService:   getEnv("MASTER_DATA_SERVICE_URL", "http://localhost:8007"),
+		OrderService:        getEnv("ORDER_SERVICE_URL", "http://localhost:8003"),
+		ProductionService:   getEnv("PRODUCTION_SERVICE_URL", "http://localhost:8004"),
+		TimesheetService:    getEnv("TIMESHEET_SERVICE_URL", "http://localhost:8005"),
+		PayrollService:      getEnv("PAYROLL_SERVICE_URL", "http://localhost:8006"),
+		ReportService:       getEnv("REPORT_SERVICE_URL", "http://localhost:8007"),
+		MasterDataService:   getEnv("MASTER_DATA_SERVICE_URL", "http://localhost:8002"),
 		NotificationService: getEnv("NOTIFICATION_SERVICE_URL", "http://localhost:8008"),
 		FileService:         getEnv("FILE_SERVICE_URL", "http://localhost:8009"),
 	}

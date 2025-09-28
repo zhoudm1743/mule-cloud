@@ -82,6 +82,34 @@ services:
     volumes:
       - ./configs:/app/configs:ro
 
+  # 基础数据服务
+  master-data-service:
+    build:
+      context: .
+      dockerfile: deployments/master-data-service/Dockerfile
+    container_name: mule-cloud-master-data-service
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      - MULE_CLOUD_SERVER_HOST=0.0.0.0
+      - MULE_CLOUD_SERVER_PORT=8002
+      - MULE_CLOUD_DATABASE_MONGODB_URI=mongodb://admin:password123@mongodb:27017/mule_cloud?authSource=admin
+      - MULE_CLOUD_REDIS_HOST=redis
+      - MULE_CLOUD_REDIS_PASSWORD=redis123
+      - MULE_CLOUD_CONSUL_ADDRESS=consul:8500
+      - MULE_CLOUD_NATS_URL=nats://nats:4222
+      - MULE_CLOUD_JWT_SECRET_KEY=mule-cloud-production-secret-key
+    depends_on:
+      - mongodb
+      - redis
+      - consul
+      - nats
+    networks:
+      - mule-cloud-network
+    volumes:
+      - ./configs:/app/configs:ro
+
   # API网关
   gateway:
     build:
@@ -95,9 +123,11 @@ services:
       - GATEWAY_PORT=8080
       - CONSUL_ADDRESS=consul:8500
       - USER_SERVICE_URL=http://user-service:8001
+      - MASTER_DATA_SERVICE_URL=http://master-data-service:8002
     depends_on:
       - consul
       - user-service
+      - master-data-service
     networks:
       - mule-cloud-network
 

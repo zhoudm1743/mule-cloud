@@ -171,32 +171,7 @@ const (
 	ReportStatusRejected ReportStatus = 2 // 已驳回
 )
 
-// Process 工序模型
-type Process struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ProcessNo   string             `bson:"process_no" json:"process_no" binding:"required"`
-	ProcessName string             `bson:"process_name" json:"process_name" binding:"required"`
-	Category    string             `bson:"category" json:"category"`
-	Description string             `bson:"description,omitempty" json:"description"`
-
-	// 工价信息
-	StandardRate    float64 `bson:"standard_rate" json:"standard_rate"`
-	RateUnit        string  `bson:"rate_unit" json:"rate_unit"`               // 件、米、小时等
-	EstimatedTime   float64 `bson:"estimated_time" json:"estimated_time"`     // 标准工时
-	DifficultyLevel int     `bson:"difficulty_level" json:"difficulty_level"` // 难度等级1-5
-
-	// 质量要求
-	QualityStandards []QualityStandard `bson:"quality_standards,omitempty" json:"quality_standards"`
-
-	// 状态信息
-	Status ProcessStatus `bson:"status" json:"status"`
-
-	// 审计信息
-	CreatedBy primitive.ObjectID `bson:"created_by" json:"created_by"`
-	UpdatedBy primitive.ObjectID `bson:"updated_by,omitempty" json:"updated_by"`
-	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt time.Time          `bson:"updated_at" json:"updated_at"`
-}
+// Process定义已移动到master_data.go中
 
 // ProcessStatus 工序状态
 type ProcessStatus int
@@ -213,17 +188,7 @@ type QualityStandard struct {
 	CheckMethod string `bson:"check_method,omitempty" json:"check_method"`
 }
 
-// Size 尺码模型
-type Size struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	SizeNo    string             `bson:"size_no" json:"size_no" binding:"required"`
-	SizeName  string             `bson:"size_name" json:"size_name" binding:"required"`
-	Category  string             `bson:"category" json:"category"`
-	SortOrder int                `bson:"sort_order" json:"sort_order"`
-	Status    SizeStatus         `bson:"status" json:"status"`
-	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt time.Time          `bson:"updated_at" json:"updated_at"`
-}
+// Size和Color定义已移动到master_data.go中
 
 // SizeStatus 尺码状态
 type SizeStatus int
@@ -232,18 +197,6 @@ const (
 	SizeStatusActive   SizeStatus = 1 // 激活
 	SizeStatusInactive SizeStatus = 0 // 停用
 )
-
-// Color 颜色模型
-type Color struct {
-	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	ColorNo   string             `bson:"color_no" json:"color_no" binding:"required"`
-	ColorName string             `bson:"color_name" json:"color_name" binding:"required"`
-	HexCode   string             `bson:"hex_code,omitempty" json:"hex_code"`
-	SortOrder int                `bson:"sort_order" json:"sort_order"`
-	Status    ColorStatus        `bson:"status" json:"status"`
-	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt time.Time          `bson:"updated_at" json:"updated_at"`
-}
 
 // ColorStatus 颜色状态
 type ColorStatus int

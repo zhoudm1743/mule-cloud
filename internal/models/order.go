@@ -122,30 +122,7 @@ type ProcessStep struct {
 	StandardRate  float64            `bson:"standard_rate" json:"standard_rate"`   // 标准工价
 }
 
-// Customer 客户模型
-type Customer struct {
-	ID          primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	CustomerNo  string             `bson:"customer_no" json:"customer_no" binding:"required"`
-	CompanyName string             `bson:"company_name" json:"company_name" binding:"required"`
-	ContactName string             `bson:"contact_name" json:"contact_name"`
-	Phone       string             `bson:"phone" json:"phone"`
-	Email       string             `bson:"email,omitempty" json:"email"`
-	Address     string             `bson:"address,omitempty" json:"address"`
-
-	// 业务信息
-	CustomerType CustomerType `bson:"customer_type" json:"customer_type"`
-	CreditLimit  float64      `bson:"credit_limit" json:"credit_limit"`
-	PaymentTerm  string       `bson:"payment_term" json:"payment_term"`
-
-	// 状态信息
-	Status CustomerStatus `bson:"status" json:"status"`
-
-	// 审计信息
-	CreatedBy primitive.ObjectID `bson:"created_by" json:"created_by"`
-	UpdatedBy primitive.ObjectID `bson:"updated_by,omitempty" json:"updated_by"`
-	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt time.Time          `bson:"updated_at" json:"updated_at"`
-}
+// Customer定义已移动到master_data.go中
 
 // CustomerType 客户类型
 type CustomerType int
@@ -165,27 +142,7 @@ const (
 )
 
 // Salesperson 业务员模型
-type Salesperson struct {
-	ID     primitive.ObjectID `bson:"_id,omitempty" json:"id"`
-	UserID primitive.ObjectID `bson:"user_id" json:"user_id"`
-	Name   string             `bson:"name" json:"name" binding:"required"`
-	Phone  string             `bson:"phone" json:"phone"`
-	Email  string             `bson:"email,omitempty" json:"email"`
-	Region string             `bson:"region,omitempty" json:"region"`
-
-	// 业绩信息
-	SalesTarget float64 `bson:"sales_target" json:"sales_target"`
-	Commission  float64 `bson:"commission" json:"commission"`
-
-	// 状态信息
-	Status SalespersonStatus `bson:"status" json:"status"`
-
-	// 审计信息
-	CreatedBy primitive.ObjectID `bson:"created_by" json:"created_by"`
-	UpdatedBy primitive.ObjectID `bson:"updated_by,omitempty" json:"updated_by"`
-	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
-	UpdatedAt time.Time          `bson:"updated_at" json:"updated_at"`
-}
+// Salesperson定义已移动到master_data.go中
 
 // SalespersonStatus 业务员状态
 type SalespersonStatus int
@@ -265,23 +222,4 @@ type CreateStyleRequest struct {
 	SuggestedPrice float64       `json:"suggested_price"`
 }
 
-// CustomerListRequest 客户列表请求
-type CustomerListRequest struct {
-	Page     int    `form:"page,default=1" binding:"min=1"`
-	PageSize int    `form:"page_size,default=10" binding:"min=1,max=100"`
-	Keyword  string `form:"keyword"`
-	Type     *int   `form:"type"`
-	Status   *int   `form:"status"`
-}
-
-// CreateCustomerRequest 创建客户请求
-type CreateCustomerRequest struct {
-	CompanyName  string  `json:"company_name" binding:"required"`
-	ContactName  string  `json:"contact_name"`
-	Phone        string  `json:"phone"`
-	Email        string  `json:"email"`
-	Address      string  `json:"address"`
-	CustomerType int     `json:"customer_type"`
-	CreditLimit  float64 `json:"credit_limit"`
-	PaymentTerm  string  `json:"payment_term"`
-}
+// CustomerListRequest和CreateCustomerRequest定义已移动到master_data.go中
