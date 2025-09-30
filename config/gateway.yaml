@@ -1,0 +1,75 @@
+# Gateway 网关配置
+
+server:
+  name: "mule-cloud-gateway"
+  host: "0.0.0.0"
+  port: 8080
+  mode: "release"
+
+consul:
+  enabled: true
+  address: "127.0.0.1:8500"
+  scheme: "http"
+  service_name: "gateway"
+  service_ip: "127.0.0.1"
+  service_port: 8080
+  tags:
+    - "gateway"
+    - "api"
+  health_check_interval: "10s"
+  health_check_timeout: "5s"
+  deregister_after: "30s"
+
+jwt:
+  secret_key: "mule-cloud-super-secret-key-change-in-production-min-32-chars"
+  expire_time: 24
+  issuer: "mule-cloud-gateway"
+
+hystrix:
+  enabled: true
+  default:
+    timeout: 3000
+    max_concurrent_requests: 100
+    request_volume_threshold: 20
+    sleep_window: 5000
+    error_percent_threshold: 50
+  commands:
+    testservice:
+      timeout: 2000
+      max_concurrent_requests: 50
+      request_volume_threshold: 10
+      sleep_window: 3000
+      error_percent_threshold: 50
+    basicservice:
+      timeout: 5000
+      max_concurrent_requests: 100
+      request_volume_threshold: 20
+      sleep_window: 5000
+      error_percent_threshold: 60
+
+gateway:
+  rate_limit:
+    enabled: true
+    rate: 100
+  timeout:
+    read: 30
+    write: 30
+  routes:
+    /test:
+      service_name: "testservice"
+      require_auth: true
+      require_role: []
+    /basic:
+      service_name: "basicservice"
+      require_auth: false
+      require_role: []
+    /admin:
+      service_name: "testservice"
+      require_auth: true
+      require_role:
+        - "admin"
+
+log:
+  level: "info"
+  format: "text"
+  output: "stdout"

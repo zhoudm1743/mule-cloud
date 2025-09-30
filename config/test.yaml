@@ -1,0 +1,27 @@
+# Test Service 配置
+
+server:
+  name: "testservice"
+  host: "0.0.0.0"
+  port: 8000
+  mode: "release"
+
+consul:
+  enabled: true
+  address: "127.0.0.1:8500"
+  scheme: "http"
+  service_name: "testservice"
+  service_ip: "127.0.0.1"
+  service_port: 8000
+  tags:
+    - "test"
+    - "admin"
+    - "auth-required"
+  health_check_interval: "10s"
+  health_check_timeout: "5s"
+  deregister_after: "30s"
+
+log:
+  level: "info"
+  format: "text"
+  output: "stdout"

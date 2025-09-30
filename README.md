@@ -1,346 +1,401 @@
-# 信芙云服装生产管理系统
+# Mule-Cloud 微服务项目
 
-## 项目简介
+基于 **Go-Kit** + **Gin** + **Consul** + **JWT** 的微服务架构示例项目。
 
-信芙云是一个基于Go微服务架构的中小型服装生产管理系统，旨在帮助服装制造企业实现数字化生产管理。
+## 🎯 项目特性
 
-**🎉 当前状态**：基础架构+基础数据服务已完成！用户认证、基础数据管理、API网关、微服务通信等核心组件已实现并测试通过。
+- ✅ **三层架构**: Service → Endpoint → Transport
+- ✅ **JWT认证**: 基于角色的权限控制
+- ✅ **API网关**: 统一入口、路由转发、认证鉴权、限流保护
+- ✅ **Consul服务发现**: 自动服务注册与发现
+- ✅ **Hystrix熔断器**: 服务降级、超时控制、并发限制
+- ✅ **统一响应**: 统一返回格式、统一错误处理
+- ✅ **配置管理**: Viper + YAML，支持环境变量覆盖
+- ✅ **CORS支持**: 跨域请求处理
 
-### 核心功能
-
-- **订单管理**：款式管理、订单创建、订单跟踪
-- **生产管理**：生产计划、裁剪任务、进度监控
-- **工时管理**：工作上报、工时统计、进度跟踪
-- **工资管理**：工资计算、工资统计、工资发放
-- **基础数据**：客户管理、业务员管理、工序管理
-- **用户管理**：用户认证、角色权限、用户管理
-
-### 技术栈
-
-- **后端**：Go 1.21+, Gin, MongoDB, Redis
-- **架构**：微服务架构
-- **服务发现**：Consul
-- **消息队列**：NATS
-- **监控**：Prometheus + Grafana
-- **容器化**：Docker + Docker Compose
-
-## 快速开始
-
-### 前置要求
-
-- Docker 20.10+
-- Docker Compose 3.8+
-- Go 1.21+ (如需本地开发)
-
-### 使用Docker Compose启动
-
-1. **克隆项目**
-```bash
-git clone <repository-url>
-cd mule-cloud
-```
-
-2. **启动所有服务**
-```bash
-docker-compose up -d
-```
-
-3. **查看服务状态**
-```bash
-docker-compose ps
-```
-
-4. **查看日志**
-```bash
-# 查看所有服务日志
-docker-compose logs -f
-
-# 查看特定服务日志
-docker-compose logs -f user-service
-```
-
-### 服务访问地址
-
-- **API网关**: http://localhost:8080
-- **用户服务**: http://localhost:8001
-- **Consul UI**: http://localhost:8500
-- **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3000
-- **MongoDB**: localhost:27017
-- **Redis**: localhost:6379
-- **NATS**: localhost:4222
-
-### 默认账号
-
-- **系统管理员**: `admin` / `password`
-- **Grafana**: `admin` / `admin123`
-- **MongoDB**: `admin` / `password123`
-- **Redis**: 密码 `redis123`
-
-## API文档
-
-### 认证相关
-
-#### 用户注册
-```bash
-curl -X POST http://localhost:8001/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "testuser",
-    "email": "test@example.com", 
-    "password": "password123",
-    "real_name": "测试用户"
-  }'
-```
-
-#### 用户登录
-```bash
-curl -X POST http://localhost:8001/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "admin",
-    "password": "password"
-  }'
-```
-
-#### 获取用户资料
-```bash
-curl -X GET http://localhost:8001/api/v1/users/profile \
-  -H "Authorization: Bearer <access_token>"
-```
-
-### 健康检查
-
-```bash
-curl http://localhost:8001/health
-```
-
-## 开发指南
-
-### 本地开发环境
-
-1. **安装依赖**
-```bash
-go mod download
-```
-
-2. **启动基础设施**
-```bash
-# 只启动数据库等基础服务
-docker-compose up -d mongodb redis consul nats
-```
-
-3. **运行用户服务**
-```bash
-cd cmd/user-service
-go run main.go
-```
-
-### 项目结构
+## 📁 项目结构
 
 ```
 mule-cloud/
-├── cmd/                    # 主程序入口
-│   ├── user-service/      # 用户服务
-│   ├── order-service/     # 订单服务
-│   └── gateway/           # API网关
-├── internal/               # 私有代码
-│   ├── handler/           # HTTP处理器
-│   ├── service/           # 业务逻辑
-│   ├── repository/        # 数据访问
-│   ├── models/            # 数据模型
-│   └── middleware/        # 中间件
-├── pkg/                   # 公共库
-│   ├── auth/              # 认证工具
-│   ├── cache/             # 缓存工具
-│   ├── config/            # 配置管理
-│   ├── database/          # 数据库工具
-│   └── logger/            # 日志工具
-├── configs/               # 配置文件
-├── deployments/           # 部署文件
-├── scripts/               # 脚本文件
-├── prototype/             # 原型设计
-└── docs/                  # 文档
+├── core/                    # 核心工具库
+│   ├── config/             # 配置管理
+│   ├── jwt/                # JWT认证
+│   ├── consul/             # Consul集成
+│   ├── hystrix/            # Hystrix熔断器
+│   └── response/           # 统一响应
+├── config/                  # 配置文件目录
+│   ├── gateway.yaml        # 网关配置
+│   ├── basic.yaml          # Basic服务配置
+│   └── test.yaml           # Test服务配置
+├── gateway/                 # API网关
+│   ├── middleware/         # 中间件（认证、限流、熔断、CORS）
+│   └── main.go            # 网关启动
+├── test/                    # Test服务（需要认证）
+│   ├── services/          # 业务逻辑
+│   ├── endpoint/          # 端点层
+│   ├── transport/         # HTTP处理
+│   └── cmd/               # 启动入口
+├── basic/                   # Basic服务（公开访问）
+│   ├── services/
+│   ├── endpoint/
+│   ├── transport/
+│   └── cmd/
+├── scripts/                 # 脚本
+│   ├── start_all.bat      # 启动所有服务
+│   ├── build_all.bat      # 编译所有服务
+│   └── test_services.bat  # 测试服务
+└── docs/                    # 文档
+    ├── 架构说明.md
+    ├── API网关指南.md
+    └── 快速开始.md
 ```
 
-### 代码规范
+## 🚀 快速开始
 
-- 遵循Go官方代码规范
-- 使用`gofmt`格式化代码
-- 所有公共函数和结构体需要添加注释
-- 错误处理使用包装错误的方式
-- 数据库操作必须使用事务
-- API接口需要参数验证
+### 1. 前置条件
 
-## 微服务架构
+- ✅ **Go 1.21+**
+- ✅ **Consul** ([下载](https://www.consul.io/downloads))
+- ✅ **curl** 或 **Postman** (测试用)
 
-### 服务列表
+### 2. 安装依赖
 
-1. **用户服务** (user-service:8001)
-   - 用户注册、登录、认证
-   - 用户信息管理
-   - 角色权限管理
-
-2. **订单服务** (order-service:8002)
-   - 订单管理
-   - 款式管理
-   - 客户管理
-
-3. **生产服务** (production-service:8003)
-   - 生产计划
-   - 裁剪任务
-   - 生产进度
-
-4. **工时服务** (timesheet-service:8004)
-   - 工作上报
-   - 工时统计
-   - 进度跟踪
-
-5. **工资服务** (payroll-service:8005)
-   - 工资计算
-   - 工资统计
-   - 工资发放
-
-6. **报表服务** (report-service:8006)
-   - 数据统计
-   - 报表生成
-   - 监控面板
-
-7. **基础数据服务** (master-data-service:8007)
-   - 工序管理
-   - 尺码颜色管理
-   - 字典数据
-
-8. **通知服务** (notification-service:8008)
-   - 消息推送
-   - 邮件通知
-   - 系统公告
-
-9. **文件服务** (file-service:8009)
-   - 文件上传
-   - 图片处理
-   - 文档管理
-
-10. **API网关** (gateway:8080)
-    - 路由转发
-    - 负载均衡
-    - 限流熔断
-
-### 服务间通信
-
-- **同步通信**: HTTP/REST API (外部调用)
-- **异步通信**: NATS消息队列 (内部事件)
-- **服务发现**: Consul注册中心
-- **配置管理**: Consul KV存储
-
-## 部署指南
-
-### Docker部署
-
-1. **构建镜像**
 ```bash
-# 构建用户服务
-docker build -f deployments/user-service/Dockerfile -t mule-cloud/user-service:latest .
+# 克隆项目
+cd mule-cloud
 
-# 构建API网关
-docker build -f deployments/gateway/Dockerfile -t mule-cloud/gateway:latest .
+# 安装Go依赖
+go mod tidy
 ```
 
-2. **推送镜像**
+### 3. 启动Consul
+
 ```bash
-docker tag mule-cloud/user-service:latest registry.example.com/mule-cloud/user-service:latest
-docker push registry.example.com/mule-cloud/user-service:latest
+# 开发模式启动
+consul agent -dev
 ```
 
-### Kubernetes部署
+访问 Consul UI: http://localhost:8500
 
-详见 `deployments/k8s/` 目录下的配置文件。
+### 4. 启动所有服务
+
+**方式1: 使用配置文件启动**
+
+```bash
+# 终端1: Test HTTP服务
+cd test/cmd
+go run main.go -config=../../config/test.yaml
+# 监听: :8000
+
+# 终端2: Basic HTTP服务
+cd basic/cmd
+go run main.go -config=../../config/basic.yaml
+# 监听: :8001
+
+# 终端3: API网关
+cd gateway
+go run main.go -config=config/gateway.yaml
+# 监听: :8080
+```
+
+**方式2: 一键启动（推荐）**
+```bash
+.\scripts\start_all.bat
+```
+
+### 5. 测试服务
+
+```bash
+# 自动测试脚本
+.\scripts\test_services.bat
+
+# 或手动测试
+# 健康检查
+curl http://localhost:8080/gateway/health
+
+# 公开接口（无需认证）
+curl http://localhost:8080/basic/color/1
+
+# 登录获取Token
+curl -X POST http://localhost:8080/api/login \
+  -H "Content-Type: application/json" \
+  -d "{\"username\":\"admin\",\"password\":\"admin123\"}"
+
+# 使用Token访问受保护接口
+curl -H "Authorization: Bearer {your-token}" \
+  http://localhost:8080/test/admin/1
+```
+
+## 📚 核心概念
+
+### 架构图
+
+```
+┌─────────────┐
+│  前端/客户端 │
+└──────┬──────┘
+       │ HTTP + JWT
+       ↓
+┌─────────────────────┐
+│    API网关 (:8080)  │
+│  • JWT认证          │
+│  • 路由转发         │
+│  • 限流保护         │
+│  • Hystrix熔断      │
+│  • CORS支持         │
+└──────┬──────────────┘
+       │
+       ├─→ test (:8000) ✅ 需要认证
+       └─→ basic (:8001) 🌍 公开
+                 ↑
+            Consul (:8500)
+```
+
+### 路由配置
+
+| 路径 | 服务 | 认证 | 说明 |
+|------|------|------|------|
+| `/api/login` | 网关 | ❌ | 用户登录 |
+| `/gateway/health` | 网关 | ❌ | 健康检查 |
+| `/basic/*` | basicservice | ❌ | 公开访问（颜色、尺寸） |
+| `/test/*` | testservice | ✅ | 需要登录（管理员CRUD） |
+
+### 测试账号
+
+| 用户名 | 密码 | 角色 | 权限 |
+|--------|------|------|------|
+| admin | admin123 | admin, user | 所有接口 |
+| user | user123 | user | 部分接口 |
+
+## 🔐 JWT认证流程
+
+```
+1. 用户登录 → POST /api/login
+2. 获得Token
+3. 后续请求带上Token
+   Header: Authorization: Bearer {token}
+4. 网关验证Token
+5. 提取用户信息传递给后端服务
+   Header: X-User-ID, X-Username
+```
+
+## 🔧 开发指南
+
+### 添加新接口
+
+**步骤**:
+1. 在 `services/` 添加业务逻辑
+2. 在 `endpoint/` 添加Endpoint函数
+3. 在 `transport/` 添加Handler
+4. 在 `cmd/main.go` 注册路由
+
+详见: [架构说明.md](docs/架构说明.md)
+
+### 修改网关配置
+
+编辑 `gateway/main.go`:
+
+```go
+routes: map[string]*RouteConfig{
+    "/your-service": {
+        ServiceName: "your-service",
+        RequireAuth: true,
+    },
+}
+```
+
+## 📖 文档
+
+- 📘 [架构说明](docs/架构说明.md) - 三层架构详解
+- 📗 [API网关指南](docs/API网关指南.md) - 网关配置和使用
+- 📙 [快速开始](docs/快速开始.md) - 5分钟快速体验
+- 📕 [Consul集成指南](docs/Consul集成指南.md) - 服务注册发现
+- 📓 [快速开发指南](docs/快速开发指南.md) - 添加新接口的模板
+- 🔥 [Hystrix集成指南](docs/Hystrix集成指南.md) - 熔断器配置和使用
+- ⚙️ [配置文件指南](docs/配置文件指南.md) - Viper配置管理
+- 💾 [MongoDB-Redis-Logger使用指南](docs/MongoDB-Redis-Logger使用指南.md) - 数据库、缓存、日志
+- 🎯 [全局实例使用指南](docs/全局实例使用指南.md) - 懒加载全局实例（推荐）
+
+## 🧪 测试API
+
+### 1. 公开接口
+
+```bash
+# 获取颜色
+GET http://localhost:8080/basic/color/1
+
+# 获取所有颜色
+GET http://localhost:8080/basic/color
+
+# 获取尺寸
+GET http://localhost:8080/basic/size/2
+
+# 获取所有尺寸
+GET http://localhost:8080/basic/size
+```
+
+### 2. 认证接口
+
+```bash
+# 登录
+POST http://localhost:8080/api/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "admin123"
+}
+
+# 响应
+{
+  "code": 0,
+  "msg": "登录成功",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "username": "admin",
+    "roles": ["admin", "user"]
+  }
+}
+
+# 使用Token访问管理员接口
+GET http://localhost:8080/test/admin/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+# 创建管理员
+POST http://localhost:8080/test/admin
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "新管理员",
+  "email": "new@example.com",
+  "role": "manager"
+}
+
+# 更新管理员
+PUT http://localhost:8080/test/admin/1
+Authorization: Bearer {token}
+Content-Type: application/json
+
+{
+  "name": "更新的名字",
+  "email": "updated@example.com",
+  "role": "manager"
+}
+
+# 删除管理员
+DELETE http://localhost:8080/test/admin/3
+Authorization: Bearer {token}
+```
+
+## 🛠️ 常用命令
+
+```bash
+# 启动所有服务
+.\scripts\start_all.bat
+
+# 编译所有服务
+.\scripts\build_all.bat
+
+# 测试所有服务
+.\scripts\test_services.bat
+
+# 查看Consul服务
+curl http://localhost:8500/v1/catalog/services
+
+# 查看网关健康状态
+curl http://localhost:8080/gateway/health
+
+# 清理依赖
+go mod tidy
+```
+
+## ⚠️ 注意事项
 
 ### 生产环境配置
 
-1. **安全配置**
-   - 修改默认密码
-   - 配置HTTPS证书
-   - 设置防火墙规则
+1. **修改JWT密钥**
+   ```bash
+   export JWT_SECRET="your-super-secret-key-min-32-chars"
+   ```
 
-2. **性能优化**
-   - 调整数据库连接池
-   - 配置Redis集群
-   - 启用Gzip压缩
+2. **修改服务IP**
+   ```bash
+   export SERVICE_IP="实际服务器IP"
+   export CONSUL_ADDR="consul服务器地址:8500"
+   ```
 
-3. **监控告警**
-   - 配置Prometheus监控
-   - 设置Grafana告警
-   - 配置日志收集
+3. **使用HTTPS**
+   - 配置SSL证书
+   - 修改网关监听端口
 
-## 监控运维
+4. **配置日志和监控**
+   - 添加日志系统（如ELK）
+   - 添加监控（如Prometheus）
 
-### 健康检查
+## 🐛 故障排查
 
-所有服务都提供健康检查端点：
-```bash
-curl http://service-host:port/health
-```
-
-### 性能监控
-
-- **Prometheus指标**: http://localhost:9090
-- **Grafana面板**: http://localhost:3000
-- **服务监控**: http://localhost:8500
-
-### 日志管理
-
-日志输出格式为JSON，包含以下字段：
-- `timestamp`: 时间戳
-- `level`: 日志级别
-- `message`: 日志消息
-- `service`: 服务名称
-- `request_id`: 请求ID
-- `user_id`: 用户ID
-
-## 常见问题
-
-### Q: 如何重置数据库？
+### 服务无法启动
 
 ```bash
-# 停止服务
-docker-compose down
+# 检查端口占用
+netstat -ano | findstr "8080"
+netstat -ano | findstr "8000"
 
-# 删除数据卷
-docker volume rm mule-cloud_mongodb_data
-
-# 重新启动
-docker-compose up -d
+# 检查Consul是否启动
+curl http://localhost:8500/v1/status/leader
 ```
 
-### Q: 如何修改服务端口？
+### Token验证失败
 
-修改 `docker-compose.yaml` 文件中对应服务的端口映射。
+- 检查Token格式: `Bearer {token}`
+- 检查Token是否过期（24小时）
+- 检查JWT_SECRET是否一致
 
-### Q: 如何查看服务注册状态？
+## 📊 服务端口一览
 
-访问Consul UI: http://localhost:8500
+| 服务 | 端口 | URL | 说明 |
+|------|------|-----|------|
+| Consul | 8500 | http://localhost:8500 | 服务注册中心 |
+| Test服务 | 8000 | http://localhost:8000 | Admin管理服务 |
+| Basic服务 | 8001 | http://localhost:8001 | 基础服务（颜色、尺寸） |
+| **API网关** | **8080** | **http://localhost:8080** | **统一入口** |
 
-### Q: 如何扩展服务？
+## 📝 更新日志
 
-```bash
-# 扩展用户服务到3个实例
-docker-compose up -d --scale user-service=3
-```
+### v1.3.0 (2025-09-30)
+- ✅ 集成 MongoDB 数据库（非关系型）
+- ✅ 集成 Redis 缓存
+- ✅ 集成 Zap 结构化日志系统
+- ✅ 完整的数据库、缓存、日志封装
+- ✅ 所有服务使用配置文件启动
 
-## 贡献指南
+### v1.2.0 (2025-09-30)
+- ✅ 集成 Hystrix-go 熔断器
+- ✅ 统一响应格式和错误处理
+- ✅ Viper + YAML 配置管理
+- ✅ 环境变量支持
 
-1. Fork项目
-2. 创建功能分支
-3. 提交代码
-4. 创建Pull Request
+### v1.0.0 (2025-01-01)
+- ✅ 基础三层架构
+- ✅ JWT认证系统
+- ✅ API网关（路由、认证、限流）
+- ✅ Consul集成
+- ✅ 完整文档
 
-## 许可证
+## 🤝 贡献
 
-本项目采用MIT许可证，详见LICENSE文件。
+欢迎提交Issue和Pull Request！
 
-## 联系我们
+## 📄 许可证
 
-- 项目主页：https://github.com/mule-cloud/mule-cloud
-- 问题反馈：https://github.com/mule-cloud/mule-cloud/issues
-- 邮箱：support@mulecloud.com
+MIT License
+
+---
+
+**快速链接**:
+- 📚 [完整文档](docs/)
+- 🚀 [快速开始](docs/快速开始.md)
+- 🏗️ [架构说明](docs/架构说明.md)
+
+**享受编码！🎉**

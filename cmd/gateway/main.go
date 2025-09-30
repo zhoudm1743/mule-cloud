@@ -1,269 +1,392 @@
 package main
 
 import (
-	"context"
-	"net/http"
+	"flag"
+	"fmt"
+	"log"
+	"mule-cloud/app/gateway/middleware"
+	cfgPkg "mule-cloud/core/config"
+	hystrixPkg "mule-cloud/core/hystrix"
+	jwtPkg "mule-cloud/core/jwt"
+	"mule-cloud/core/response"
 	"net/http/httputil"
 	"net/url"
-	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/zhoudm1743/mule-cloud/internal/middleware"
-	"github.com/zhoudm1743/mule-cloud/pkg/logger"
+	"github.com/hashicorp/consul/api"
 )
 
-// ServiceRegistry 服务注册表
-type ServiceRegistry struct {
-	UserService string
-	// 其他服务地址可以在这里添加
-	OrderService        string
-	ProductionService   string
-	TimesheetService    string
-	PayrollService      string
-	ReportService       string
-	MasterDataService   string
-	NotificationService string
-	FileService         string
+// Gateway API网关结构（增强版）
+type Gateway struct {
+	consulClient *api.Client
+	routes       map[string]*RouteConfig
+	jwtManager   *jwtPkg.JWTManager
+	rateLimiter  *middleware.RateLimiter
+	config       *cfgPkg.Config
 }
 
-// LoadServiceRegistry 加载服务注册表
-func LoadServiceRegistry() *ServiceRegistry {
-	return &ServiceRegistry{
-		UserService:         getEnv("USER_SERVICE_URL", "http://localhost:8001"),
-		OrderService:        getEnv("ORDER_SERVICE_URL", "http://localhost:8003"),
-		ProductionService:   getEnv("PRODUCTION_SERVICE_URL", "http://localhost:8004"),
-		TimesheetService:    getEnv("TIMESHEET_SERVICE_URL", "http://localhost:8005"),
-		PayrollService:      getEnv("PAYROLL_SERVICE_URL", "http://localhost:8006"),
-		ReportService:       getEnv("REPORT_SERVICE_URL", "http://localhost:8007"),
-		MasterDataService:   getEnv("MASTER_DATA_SERVICE_URL", "http://localhost:8002"),
-		NotificationService: getEnv("NOTIFICATION_SERVICE_URL", "http://localhost:8008"),
-		FileService:         getEnv("FILE_SERVICE_URL", "http://localhost:8009"),
-	}
+// RouteConfig 路由配置
+type RouteConfig struct {
+	ServiceName string   // Consul服务名
+	RequireAuth bool     // 是否需要认证
+	RequireRole []string // 需要的角色（为空则只需登录）
 }
 
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
+// NewGateway 创建增强版网关实例
+func NewGateway(cfg *cfgPkg.Config) (*Gateway, error) {
+	// 连接Consul
+	var client *api.Client
+	if cfg.Consul.Enabled {
+		config := api.DefaultConfig()
+		config.Address = cfg.Consul.Address
+		config.Scheme = cfg.Consul.Scheme
 
-func main() {
-	// 初始化日志
-	logConfig := logger.Config{
-		Level:  "info",
-		Format: "json",
-		Output: "stdout",
-	}
-	appLogger := logger.NewLogger(logConfig)
-
-	// 加载服务注册表
-	services := LoadServiceRegistry()
-
-	// 初始化Gin引擎
-	gin.SetMode(gin.ReleaseMode)
-	router := gin.New()
-
-	// 添加中间件
-	router.Use(middleware.RecoveryMiddleware(appLogger))
-	router.Use(middleware.CORSMiddleware())
-	router.Use(middleware.RequestIDMiddleware())
-	router.Use(middleware.LoggingMiddleware(appLogger))
-	router.Use(middleware.SecurityMiddleware())
-
-	// 健康检查
-	router.GET("/health", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"status":    "ok",
-			"service":   "api-gateway",
-			"timestamp": time.Now(),
-			"services": gin.H{
-				"user-service": services.UserService,
-			},
-		})
-	})
-
-	// API路由
-	setupRoutes(router, services, appLogger)
-
-	// 启动服务器
-	port := getEnv("GATEWAY_PORT", "8080")
-	server := &http.Server{
-		Addr:         ":" + port,
-		Handler:      router,
-		ReadTimeout:  30 * time.Second,
-		WriteTimeout: 30 * time.Second,
-	}
-
-	// 优雅关闭
-	go func() {
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			appLogger.Fatal("Failed to start gateway", "error", err)
-		}
-	}()
-
-	appLogger.Info("API Gateway started", "port", port)
-
-	// 等待中断信号
-	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-	<-quit
-
-	appLogger.Info("Shutting down API Gateway...")
-
-	// 给服务5秒时间完成正在处理的请求
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	if err := server.Shutdown(ctx); err != nil {
-		appLogger.Error("Gateway forced to shutdown", "error", err)
-	}
-
-	appLogger.Info("API Gateway stopped")
-}
-
-// setupRoutes 设置路由
-func setupRoutes(router *gin.Engine, services *ServiceRegistry, logger logger.Logger) {
-	api := router.Group("/api")
-
-	// 用户服务路由
-	userGroup := api.Group("/v1")
-	{
-		// 认证相关
-		userGroup.Any("/auth/*path", createProxy(services.UserService, logger))
-
-		// 用户相关
-		userGroup.Any("/users/*path", createProxy(services.UserService, logger))
-
-		// 管理员相关
-		userGroup.Any("/admin/users/*path", createProxy(services.UserService, logger))
-	}
-
-	// 其他服务的路由可以在这里添加
-	// 订单服务
-	orderGroup := api.Group("/v1")
-	{
-		orderGroup.Any("/orders/*path", createProxy(services.OrderService, logger))
-		orderGroup.Any("/customers/*path", createProxy(services.OrderService, logger))
-		orderGroup.Any("/styles/*path", createProxy(services.OrderService, logger))
-		orderGroup.Any("/salespersons/*path", createProxy(services.OrderService, logger))
-	}
-
-	// 生产服务
-	productionGroup := api.Group("/v1")
-	{
-		productionGroup.Any("/production/*path", createProxy(services.ProductionService, logger))
-		productionGroup.Any("/cutting/*path", createProxy(services.ProductionService, logger))
-	}
-
-	// 工时服务
-	timesheetGroup := api.Group("/v1")
-	{
-		timesheetGroup.Any("/work-reports/*path", createProxy(services.TimesheetService, logger))
-		timesheetGroup.Any("/timesheets/*path", createProxy(services.TimesheetService, logger))
-	}
-
-	// 工资服务
-	payrollGroup := api.Group("/v1")
-	{
-		payrollGroup.Any("/payroll/*path", createProxy(services.PayrollService, logger))
-		payrollGroup.Any("/salary/*path", createProxy(services.PayrollService, logger))
-	}
-
-	// 报表服务
-	reportGroup := api.Group("/v1")
-	{
-		reportGroup.Any("/reports/*path", createProxy(services.ReportService, logger))
-		reportGroup.Any("/statistics/*path", createProxy(services.ReportService, logger))
-		reportGroup.Any("/dashboard/*path", createProxy(services.ReportService, logger))
-	}
-
-	// 基础数据服务
-	masterDataGroup := api.Group("/v1")
-	{
-		masterDataGroup.Any("/processes/*path", createProxy(services.MasterDataService, logger))
-		masterDataGroup.Any("/sizes/*path", createProxy(services.MasterDataService, logger))
-		masterDataGroup.Any("/colors/*path", createProxy(services.MasterDataService, logger))
-		masterDataGroup.Any("/workers/*path", createProxy(services.MasterDataService, logger))
-	}
-
-	// 通知服务
-	notificationGroup := api.Group("/v1")
-	{
-		notificationGroup.Any("/notifications/*path", createProxy(services.NotificationService, logger))
-	}
-
-	// 文件服务
-	fileGroup := api.Group("/v1")
-	{
-		fileGroup.Any("/files/*path", createProxy(services.FileService, logger))
-		fileGroup.Any("/upload/*path", createProxy(services.FileService, logger))
-	}
-}
-
-// createProxy 创建反向代理
-func createProxy(targetURL string, logger logger.Logger) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		target, err := url.Parse(targetURL)
+		var err error
+		client, err = api.NewClient(config)
 		if err != nil {
-			logger.Error("Invalid target URL", "url", targetURL, "error", err)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"code":    500,
-				"message": "Service unavailable",
+			return nil, fmt.Errorf("连接Consul失败: %v", err)
+		}
+	}
+
+	// 构建路由配置
+	routes := make(map[string]*RouteConfig)
+	for prefix, routeCfg := range cfg.Gateway.Routes {
+		routes[prefix] = &RouteConfig{
+			ServiceName: routeCfg.ServiceName,
+			RequireAuth: routeCfg.RequireAuth,
+			RequireRole: routeCfg.RequireRole,
+		}
+	}
+
+	// JWT管理器
+	jwtSecret := []byte(cfg.JWT.SecretKey)
+	expireTime := time.Duration(cfg.JWT.ExpireTime) * time.Hour
+
+	// 限流器
+	var rateLimiter *middleware.RateLimiter
+	if cfg.Gateway.RateLimit.Enabled {
+		rateLimiter = middleware.NewRateLimiter(cfg.Gateway.RateLimit.Rate)
+	}
+
+	return &Gateway{
+		consulClient: client,
+		routes:       routes,
+		jwtManager:   jwtPkg.NewJWTManager(jwtSecret, expireTime),
+		rateLimiter:  rateLimiter,
+		config:       cfg,
+	}, nil
+}
+
+// getServiceAddress 从Consul获取健康的服务地址
+func (gw *Gateway) getServiceAddress(serviceName string) (string, error) {
+	services, _, err := gw.consulClient.Health().Service(serviceName, "", true, nil)
+	if err != nil {
+		return "", fmt.Errorf("查询服务失败: %v", err)
+	}
+
+	if len(services) == 0 {
+		return "", fmt.Errorf("未找到可用的服务实例: %s", serviceName)
+	}
+
+	// 简单负载均衡：返回第一个健康实例
+	service := services[0].Service
+	return fmt.Sprintf("http://%s:%d", service.Address, service.Port), nil
+}
+
+// proxyHandler 反向代理处理器（增强版）
+func (gw *Gateway) proxyHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		startTime := time.Now()
+		path := c.Request.URL.Path
+
+		// 1. 匹配路由前缀
+		var routeConfig *RouteConfig
+		var matchedPrefix string
+		for prefix, config := range gw.routes {
+			if strings.HasPrefix(path, prefix) {
+				routeConfig = config
+				matchedPrefix = prefix
+				break
+			}
+		}
+
+		if routeConfig == nil {
+			c.JSON(404, gin.H{"code": 404, "msg": "路由不存在"})
+			return
+		}
+
+		// 设置服务名称（供Hystrix中间件使用）
+		c.Set("service_name", routeConfig.ServiceName)
+
+		// 2. 认证检查（如果需要）
+		if routeConfig.RequireAuth {
+			claimsValue, exists := c.Get("claims")
+			if !exists {
+				c.JSON(401, gin.H{"code": 401, "msg": "需要认证"})
+				return
+			}
+
+			// 角色检查
+			if len(routeConfig.RequireRole) > 0 {
+				claims := claimsValue.(*jwtPkg.Claims)
+				if !claims.HasAnyRole(routeConfig.RequireRole...) {
+					c.JSON(403, gin.H{"code": 403, "msg": "权限不足"})
+					return
+				}
+			}
+		}
+
+		// 3. 从Consul获取服务地址
+		targetURL, err := gw.getServiceAddress(routeConfig.ServiceName)
+		if err != nil {
+			log.Printf("[网关错误] 服务不可用: %s, 错误: %v", routeConfig.ServiceName, err)
+			c.JSON(503, gin.H{"code": 503, "msg": fmt.Sprintf("服务不可用: %s", routeConfig.ServiceName)})
+			return
+		}
+
+		// 4. 构建反向代理
+		target, _ := url.Parse(targetURL)
+		proxy := httputil.NewSingleHostReverseProxy(target)
+
+		// 5. 修改请求
+		originalPath := c.Request.URL.Path
+		c.Request.URL.Path = strings.TrimPrefix(originalPath, matchedPrefix)
+		c.Request.URL.Host = target.Host
+		c.Request.URL.Scheme = target.Scheme
+
+		// 6. 设置转发头（包括用户信息）
+		c.Request.Header.Set("X-Forwarded-Host", c.Request.Host)
+		c.Request.Header.Set("X-Real-IP", c.ClientIP())
+		c.Request.Header.Set("X-Gateway", "mule-cloud-gateway-")
+
+		// 传递用户信息到后端服务
+		if userID, exists := c.Get("user_id"); exists {
+			c.Request.Header.Set("X-User-ID", userID.(string))
+		}
+		if username, exists := c.Get("username"); exists {
+			c.Request.Header.Set("X-Username", username.(string))
+		}
+
+		c.Request.Host = target.Host
+
+		// 7. 记录日志
+		log.Printf("[网关转发] %s %s → %s%s (服务: %s, 用户: %v)",
+			c.Request.Method,
+			originalPath,
+			targetURL,
+			c.Request.URL.Path,
+			routeConfig.ServiceName,
+			c.GetString("username"),
+		)
+
+		// 8. 执行代理转发
+		proxy.ServeHTTP(c.Writer, c.Request)
+
+		// 9. 记录响应时间
+		duration := time.Since(startTime)
+		log.Printf("[网关响应] %s %s 耗时: %v", c.Request.Method, originalPath, duration)
+	}
+}
+
+// loginHandler 登录接口（示例）
+func (gw *Gateway) loginHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req struct {
+			Username string `json:"username" binding:"required"`
+			Password string `json:"password" binding:"required"`
+		}
+
+		if err := c.ShouldBindJSON(&req); err != nil {
+			c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
+			return
+		}
+
+		// 这里应该查询数据库验证用户名密码
+		// 为了演示，简化处理
+		if req.Username == "admin" && req.Password == "admin123" {
+			token, err := gw.jwtManager.GenerateToken("1", "admin", []string{"admin", "user"})
+			if err != nil {
+				c.JSON(500, gin.H{"code": 500, "msg": "生成token失败"})
+				return
+			}
+
+			c.JSON(200, gin.H{
+				"code": 0,
+				"msg":  "登录成功",
+				"data": gin.H{
+					"token":    token,
+					"username": "admin",
+					"roles":    []string{"admin", "user"},
+				},
 			})
 			return
 		}
 
-		// 创建反向代理
-		proxy := httputil.NewSingleHostReverseProxy(target)
-
-		// 自定义Director以修改请求
-		proxy.Director = func(req *http.Request) {
-			req.URL.Scheme = target.Scheme
-			req.URL.Host = target.Host
-
-			// 保持原始路径
-			originalPath := c.Param("path")
-			if originalPath != "" {
-				// 获取路由组前缀
-				routePrefix := getRoutePrefix(c.FullPath())
-				// 构建完整路径
-				req.URL.Path = "/api/v1" + routePrefix + originalPath
+		if req.Username == "user" && req.Password == "user123" {
+			token, err := gw.jwtManager.GenerateToken("2", "user", []string{"user"})
+			if err != nil {
+				c.JSON(500, gin.H{"code": 500, "msg": "生成token失败"})
+				return
 			}
 
-			// 设置X-Forwarded-*头
-			req.Header.Set("X-Forwarded-For", c.ClientIP())
-			req.Header.Set("X-Forwarded-Proto", "http")
-			req.Header.Set("X-Forwarded-Host", c.Request.Host)
-
-			// 传递请求ID
-			if requestID := c.GetHeader("X-Request-ID"); requestID != "" {
-				req.Header.Set("X-Request-ID", requestID)
-			}
+			c.JSON(200, gin.H{
+				"code": 0,
+				"msg":  "登录成功",
+				"data": gin.H{
+					"token":    token,
+					"username": "user",
+					"roles":    []string{"user"},
+				},
+			})
+			return
 		}
 
-		// 自定义错误处理
-		proxy.ErrorHandler = func(rw http.ResponseWriter, req *http.Request, err error) {
-			logger.Error("Proxy error", "url", targetURL, "error", err)
-			rw.WriteHeader(http.StatusBadGateway)
-			rw.Write([]byte(`{"code":502,"message":"Service unavailable"}`))
-		}
-
-		// 执行代理
-		proxy.ServeHTTP(c.Writer, c.Request)
+		c.JSON(401, gin.H{"code": 401, "msg": "用户名或密码错误"})
 	}
 }
 
-// getRoutePrefix 获取路由前缀
-func getRoutePrefix(fullPath string) string {
-	// 从完整路径中提取路由前缀
-	parts := strings.Split(fullPath, "/")
-	if len(parts) >= 4 {
-		return "/" + parts[3] // /api/v1/xxx/*path -> /xxx
+// healthHandler 健康检查
+func (gw *Gateway) healthHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		healthStatus := gin.H{
+			"status":  "healthy",
+			"gateway": gw.config.Server.Name,
+		}
+
+		// 检查Consul连接
+		if gw.config.Consul.Enabled && gw.consulClient != nil {
+			_, err := gw.consulClient.Agent().Self()
+			if err != nil {
+				c.JSON(503, gin.H{"status": "unhealthy", "error": "Consul连接失败"})
+				return
+			}
+			healthStatus["consul"] = gw.config.Consul.Address
+
+			// 检查服务状态
+			services := make(map[string]string)
+			serviceSet := make(map[string]bool)
+			for _, routeConfig := range gw.routes {
+				serviceSet[routeConfig.ServiceName] = true
+			}
+
+			for svcName := range serviceSet {
+				addr, err := gw.getServiceAddress(svcName)
+				if err != nil {
+					services[svcName] = "不可用"
+				} else {
+					services[svcName] = addr
+				}
+			}
+			healthStatus["services"] = services
+		}
+
+		c.JSON(200, healthStatus)
 	}
-	return ""
+}
+
+func main() {
+	// 解析命令行参数
+	configPath := flag.String("config", "config/gateway.yaml", "配置文件路径")
+	flag.Parse()
+
+	// 加载配置
+	cfg, err := cfgPkg.Load(*configPath)
+	if err != nil {
+		log.Fatalf("加载配置失败: %v", err)
+	}
+
+	// 初始化Hystrix熔断器
+	if cfg.Hystrix.Enabled {
+		hystrixPkg.Init()
+	}
+
+	// 创建网关实例
+	gateway, err := NewGateway(cfg)
+	if err != nil {
+		log.Fatalf("创建网关失败: %v", err)
+	}
+
+	// 创建Gin路由
+	gin.SetMode(cfg.Server.Mode)
+	r := gin.New()
+
+	// 全局中间件
+	r.Use(gin.Logger())                         // 日志
+	r.Use(response.RecoveryMiddleware())        // 统一错误恢复
+	r.Use(response.UnifiedResponseMiddleware()) // 统一响应
+	r.Use(middleware.CORS())                    // 跨域
+
+	// 公开接口（无需认证）
+	public := r.Group("/api")
+	{
+		public.POST("/login", gateway.loginHandler())
+		public.GET("/health", gateway.healthHandler())
+	}
+
+	// 熔断器管理接口
+	admin := r.Group("/gateway")
+	{
+		admin.GET("/hystrix/metrics", middleware.HystrixMetricsHandler())
+		admin.GET("/hystrix/metrics/:service", middleware.HystrixMetricsHandler())
+	}
+
+	// 业务接口（需要认证 + 限流 + 熔断）
+	api := r.Group("")
+	if cfg.Gateway.RateLimit.Enabled {
+		api.Use(gateway.rateLimiter.Middleware()) // 限流
+	}
+	api.Use(middleware.OptionalAuth(gateway.jwtManager)) // 可选认证（根据路由配置决定）
+	if cfg.Hystrix.Enabled {
+		api.Use(middleware.HystrixMiddleware()) // Hystrix熔断器
+	}
+	{
+		api.Any("/test/*path", gateway.proxyHandler())
+		api.Any("/basic/*path", gateway.proxyHandler())
+		api.Any("/admin/*path", gateway.proxyHandler())
+	}
+
+	// 启动网关
+	port := fmt.Sprintf(":%d", cfg.Server.Port)
+	log.Printf("========================================")
+	log.Printf("🚀 %s 启动成功", cfg.Server.Name)
+	log.Printf("📍 监听端口: %s", port)
+	if cfg.Consul.Enabled {
+		log.Printf("🔗 Consul地址: %s", cfg.Consul.Address)
+	}
+	log.Printf("🔐 JWT认证: 已启用")
+	if cfg.Gateway.RateLimit.Enabled {
+		log.Printf("⚡ 限流保护: 每秒%d请求", cfg.Gateway.RateLimit.Rate)
+	}
+	if cfg.Hystrix.Enabled {
+		log.Printf("🔥 Hystrix熔断: 已启用")
+	}
+	log.Printf("📋 路由配置:")
+	for prefix, routeConfig := range gateway.routes {
+		authStr := "公开"
+		if routeConfig.RequireAuth {
+			if len(routeConfig.RequireRole) > 0 {
+				authStr = fmt.Sprintf("需要角色: %v", routeConfig.RequireRole)
+			} else {
+				authStr = "需要登录"
+			}
+		}
+		log.Printf("   %s/* → %s (%s)", prefix, routeConfig.ServiceName, authStr)
+	}
+	log.Printf("========================================")
+	log.Printf("💡 测试命令:")
+	log.Printf("   # 登录获取token")
+	log.Printf("   curl -X POST http://localhost:8080/api/login -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}'")
+	log.Printf("")
+	log.Printf("   # 使用token访问需要认证的接口")
+	log.Printf("   curl http://localhost:8080/test/admin/123 -H \"Authorization: Bearer {token}\"")
+	log.Printf("")
+	log.Printf("   # 访问公开接口（无需token）")
+	log.Printf("   curl http://localhost:8080/basic/color/1")
+	log.Printf("========================================")
+
+	if err := r.Run(port); err != nil {
+		log.Fatalf("网关启动失败: %v", err)
+	}
 }
