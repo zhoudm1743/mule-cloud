@@ -29,6 +29,6 @@ type ColorResponse struct {
 
 // ColorListResponse 颜色列表响应
 type ColorListResponse struct {
-	Colors []*models.Basic `json:"colors"`
-	Total  int             `json:"total"`
+	Colors []models.Basic `json:"colors"`
+	Total  int            `json:"total"`
 }

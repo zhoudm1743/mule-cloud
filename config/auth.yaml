@@ -1,24 +1,30 @@
-# Basic Service 配置
+# Auth Service 配置
 
 server:
-  name: "basicservice"
+  name: "authservice"
   host: "0.0.0.0"
-  port: 8001
+  port: 8002
   mode: "debug"
 
 consul:
   enabled: true
   address: "127.0.0.1:8500"
   scheme: "http"
-  service_name: "basicservice"
-  service_ip: "192.168.31.78"  # 使用实际的网卡 IP
-  service_port: 8001
+  service_name: "authservice"
+  service_ip: "192.168.31.78"  # 使用实际的网卡 IP，让 Consul 能访问
+  service_port: 8002
   tags:
-    - "basic"
+    - "auth"
     - "public"
   health_check_interval: "10s"
   health_check_timeout: "5s"
   deregister_after: "30s"
+
+# JWT配置
+jwt:
+  secret_key: "mule-cloud-super-secret-key-change-in-production-min-32-chars"
+  expire_time: 24  # 小时
+  issuer: "mule-cloud"
 
 log:
   level: "info"
@@ -48,3 +54,4 @@ redis:
   password: ""
   db: 0
   pool_size: 10
+

@@ -4,14 +4,14 @@ server:
   name: "mule-cloud-gateway"
   host: "0.0.0.0"
   port: 8080
-  mode: "release"
+  mode: "debug"
 
 consul:
   enabled: true
   address: "127.0.0.1:8500"
   scheme: "http"
   service_name: "gateway"
-  service_ip: "127.0.0.1"
+  service_ip: "localhost"
   service_port: 8080
   tags:
     - "gateway"
@@ -34,6 +34,12 @@ hystrix:
     sleep_window: 5000
     error_percent_threshold: 50
   commands:
+    authservice:
+      timeout: 3000
+      max_concurrent_requests: 100
+      request_volume_threshold: 20
+      sleep_window: 5000
+      error_percent_threshold: 50
     testservice:
       timeout: 2000
       max_concurrent_requests: 50
@@ -55,6 +61,10 @@ gateway:
     read: 30
     write: 30
   routes:
+    /auth:
+      service_name: "authservice"
+      require_auth: false
+      require_role: []
     /test:
       service_name: "testservice"
       require_auth: true
@@ -73,3 +83,18 @@ log:
   level: "info"
   format: "text"
   output: "stdout"
+
+# MongoDB配置
+mongodb:
+  enabled: true
+  # 方式2: 使用独立配置
+  host: "127.0.0.1"
+  port: 27015
+  username: "root"
+  password: "bgg8384495"
+  database: "mule"
+  auth_source: "admin"  # 认证数据库
+  replica_set: ""       # 副本集名称（可选）
+  max_pool_size: 100    # 最大连接池大小
+  min_pool_size: 10     # 最小连接池大小
+  timeout: 10           # 连接超时（秒）

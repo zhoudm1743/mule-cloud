@@ -216,5 +216,7 @@ func RegisterAndRun(router *gin.Engine, config *ServiceConfig, consulAddress str
 
 	// 启动HTTP服务
 	addr := fmt.Sprintf(":%d", config.ServicePort)
+	log.Printf("✅ HTTP服务启动成功，监听端口: %d", config.ServicePort)
+	log.Printf("🌐 访问地址: http://localhost:%d", config.ServicePort)
 	return router.Run(addr)
 }

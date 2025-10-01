@@ -8,6 +8,7 @@ import (
 	cfgPkg "mule-cloud/core/config"
 	hystrixPkg "mule-cloud/core/hystrix"
 	jwtPkg "mule-cloud/core/jwt"
+	loggerPkg "mule-cloud/core/logger"
 	"mule-cloud/core/response"
 	"net/http/httputil"
 	"net/url"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/consul/api"
+	"go.uber.org/zap"
 )
 
 // Gateway API网关结构（增强版）
@@ -103,11 +105,11 @@ func (gw *Gateway) proxyHandler() gin.HandlerFunc {
 
 		// 1. 匹配路由前缀
 		var routeConfig *RouteConfig
-		var matchedPrefix string
+		// var matchedPrefix string  // 不需要去掉前缀，所以不需要这个变量
 		for prefix, config := range gw.routes {
 			if strings.HasPrefix(path, prefix) {
 				routeConfig = config
-				matchedPrefix = prefix
+				// matchedPrefix = prefix
 				break
 			}
 		}
@@ -150,9 +152,9 @@ func (gw *Gateway) proxyHandler() gin.HandlerFunc {
 		target, _ := url.Parse(targetURL)
 		proxy := httputil.NewSingleHostReverseProxy(target)
 
-		// 5. 修改请求
+		// 5. 修改请求（保留完整路径，不去掉前缀）
 		originalPath := c.Request.URL.Path
-		c.Request.URL.Path = strings.TrimPrefix(originalPath, matchedPrefix)
+		// c.Request.URL.Path = strings.TrimPrefix(originalPath, matchedPrefix) // 不去掉前缀
 		c.Request.URL.Host = target.Host
 		c.Request.URL.Scheme = target.Scheme
 
@@ -187,63 +189,6 @@ func (gw *Gateway) proxyHandler() gin.HandlerFunc {
 		// 9. 记录响应时间
 		duration := time.Since(startTime)
 		log.Printf("[网关响应] %s %s 耗时: %v", c.Request.Method, originalPath, duration)
-	}
-}
-
-// loginHandler 登录接口（示例）
-func (gw *Gateway) loginHandler() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var req struct {
-			Username string `json:"username" binding:"required"`
-			Password string `json:"password" binding:"required"`
-		}
-
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(400, gin.H{"code": 400, "msg": "参数错误"})
-			return
-		}
-
-		// 这里应该查询数据库验证用户名密码
-		// 为了演示，简化处理
-		if req.Username == "admin" && req.Password == "admin123" {
-			token, err := gw.jwtManager.GenerateToken("1", "admin", []string{"admin", "user"})
-			if err != nil {
-				c.JSON(500, gin.H{"code": 500, "msg": "生成token失败"})
-				return
-			}
-
-			c.JSON(200, gin.H{
-				"code": 0,
-				"msg":  "登录成功",
-				"data": gin.H{
-					"token":    token,
-					"username": "admin",
-					"roles":    []string{"admin", "user"},
-				},
-			})
-			return
-		}
-
-		if req.Username == "user" && req.Password == "user123" {
-			token, err := gw.jwtManager.GenerateToken("2", "user", []string{"user"})
-			if err != nil {
-				c.JSON(500, gin.H{"code": 500, "msg": "生成token失败"})
-				return
-			}
-
-			c.JSON(200, gin.H{
-				"code": 0,
-				"msg":  "登录成功",
-				"data": gin.H{
-					"token":    token,
-					"username": "user",
-					"roles":    []string{"user"},
-				},
-			})
-			return
-		}
-
-		c.JSON(401, gin.H{"code": 401, "msg": "用户名或密码错误"})
 	}
 }
 
@@ -296,10 +241,26 @@ func main() {
 	if err != nil {
 		log.Fatalf("加载配置失败: %v", err)
 	}
+	// 初始化日志系统
+	if err := loggerPkg.InitLogger(&cfg.Log); err != nil {
+		log.Fatalf("初始化日志系统失败: %v", err)
+	}
+	defer loggerPkg.Close()
 
 	// 初始化Hystrix熔断器
 	if cfg.Hystrix.Enabled {
-		hystrixPkg.Init()
+		// 从配置文件读取服务级别配置
+		commands := make(map[string]hystrixPkg.Config)
+		for serviceName, cmdCfg := range cfg.Hystrix.Command {
+			commands[serviceName] = hystrixPkg.Config{
+				Timeout:                cmdCfg.Timeout,
+				MaxConcurrentRequests:  cmdCfg.MaxConcurrentRequests,
+				RequestVolumeThreshold: cmdCfg.RequestVolumeThreshold,
+				SleepWindow:            cmdCfg.SleepWindow,
+				ErrorPercentThreshold:  cmdCfg.ErrorPercentThreshold,
+			}
+		}
+		hystrixPkg.InitWithConfig(commands)
 	}
 
 	// 创建网关实例
@@ -321,7 +282,6 @@ func main() {
 	// 公开接口（无需认证）
 	public := r.Group("/api")
 	{
-		public.POST("/login", gateway.loginHandler())
 		public.GET("/health", gateway.healthHandler())
 	}
 
@@ -342,50 +302,40 @@ func main() {
 		api.Use(middleware.HystrixMiddleware()) // Hystrix熔断器
 	}
 	{
+		api.Any("/auth/*path", gateway.proxyHandler())
 		api.Any("/test/*path", gateway.proxyHandler())
 		api.Any("/basic/*path", gateway.proxyHandler())
 		api.Any("/admin/*path", gateway.proxyHandler())
 	}
 
+	// 打印路由信息
+	loggerPkg.Info("📋 网关路由注册完成")
+	loggerPkg.Info("公开接口:")
+	loggerPkg.Info("  GET    /api/health           - 健康检查")
+	loggerPkg.Info("管理接口:")
+	loggerPkg.Info("  GET    /gateway/hystrix/metrics         - 熔断器指标")
+	loggerPkg.Info("  GET    /gateway/hystrix/metrics/:service - 单个服务熔断器指标")
+	loggerPkg.Info("代理路由 (支持所有HTTP方法):")
+	for path, route := range cfg.Gateway.Routes {
+		authStatus := "❌ 无需认证"
+		if route.RequireAuth {
+			authStatus = "✅ 需要认证"
+		}
+		roleStatus := ""
+		if len(route.RequireRole) > 0 {
+			roleStatus = fmt.Sprintf(", 需要角色: %v", route.RequireRole)
+		}
+		loggerPkg.Info(fmt.Sprintf("  ANY    %s/* → %s (%s%s)",
+			path, route.ServiceName, authStatus, roleStatus))
+	}
+
 	// 启动网关
 	port := fmt.Sprintf(":%d", cfg.Server.Port)
-	log.Printf("========================================")
-	log.Printf("🚀 %s 启动成功", cfg.Server.Name)
-	log.Printf("📍 监听端口: %s", port)
-	if cfg.Consul.Enabled {
-		log.Printf("🔗 Consul地址: %s", cfg.Consul.Address)
-	}
-	log.Printf("🔐 JWT认证: 已启用")
-	if cfg.Gateway.RateLimit.Enabled {
-		log.Printf("⚡ 限流保护: 每秒%d请求", cfg.Gateway.RateLimit.Rate)
-	}
-	if cfg.Hystrix.Enabled {
-		log.Printf("🔥 Hystrix熔断: 已启用")
-	}
-	log.Printf("📋 路由配置:")
-	for prefix, routeConfig := range gateway.routes {
-		authStr := "公开"
-		if routeConfig.RequireAuth {
-			if len(routeConfig.RequireRole) > 0 {
-				authStr = fmt.Sprintf("需要角色: %v", routeConfig.RequireRole)
-			} else {
-				authStr = "需要登录"
-			}
-		}
-		log.Printf("   %s/* → %s (%s)", prefix, routeConfig.ServiceName, authStr)
-	}
-	log.Printf("========================================")
-	log.Printf("💡 测试命令:")
-	log.Printf("   # 登录获取token")
-	log.Printf("   curl -X POST http://localhost:8080/api/login -H \"Content-Type: application/json\" -d '{\"username\":\"admin\",\"password\":\"admin123\"}'")
-	log.Printf("")
-	log.Printf("   # 使用token访问需要认证的接口")
-	log.Printf("   curl http://localhost:8080/test/admin/123 -H \"Authorization: Bearer {token}\"")
-	log.Printf("")
-	log.Printf("   # 访问公开接口（无需token）")
-	log.Printf("   curl http://localhost:8080/basic/color/1")
-	log.Printf("========================================")
 
+	loggerPkg.Info("🚀 Gateway 启动中...",
+		zap.String("service", cfg.Server.Name),
+		zap.Int("port", cfg.Server.Port),
+	)
 	if err := r.Run(port); err != nil {
 		log.Fatalf("网关启动失败: %v", err)
 	}

@@ -11,11 +11,22 @@ import (
 // GetColorEndpoint 获取颜色端点
 func GetColorEndpoint(svc services.IColorService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(dto.ColorRequest)
+		req := request.(dto.ColorListRequest)
 		color, err := svc.Get(req.ID)
 		if err != nil {
 			return nil, err
 		}
 		return dto.ColorResponse{Color: color}, nil
+	}
+}
+
+func GetAllColorsEndpoint(svc services.IColorService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(dto.ColorListRequest)
+		colors, err := svc.GetAll(req)
+		if err != nil {
+			return nil, err
+		}
+		return dto.ColorListResponse{Colors: colors}, nil
 	}
 }

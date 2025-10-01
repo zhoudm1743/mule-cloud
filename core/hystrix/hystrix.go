@@ -31,27 +31,36 @@ var DefaultConfig = Config{
 	ErrorPercentThreshold:  50,   // 错误率超过50%触发熔断
 }
 
-// ServiceConfig 服务级别的配置
-var ServiceConfigs = map[string]Config{
-	"testservice": {
-		Timeout:                2000,
-		MaxConcurrentRequests:  50,
-		RequestVolumeThreshold: 10,
-		SleepWindow:            3000,
-		ErrorPercentThreshold:  50,
-	},
-	"basicservice": {
-		Timeout:                5000,
-		MaxConcurrentRequests:  100,
-		RequestVolumeThreshold: 20,
-		SleepWindow:            5000,
-		ErrorPercentThreshold:  60,
-	},
-}
+// ServiceConfig 服务级别的配置（将从配置文件加载）
+var ServiceConfigs = map[string]Config{}
 
 // Init 初始化Hystrix配置
 func Init() {
 	log.Println("🔧 初始化Hystrix熔断器配置...")
+
+	// 配置所有服务
+	for serviceName, config := range ServiceConfigs {
+		ConfigureCommand(serviceName, config)
+		log.Printf("   ✓ %s: 超时=%dms, 并发=%d, 错误率阈值=%d%%",
+			serviceName, config.Timeout, config.MaxConcurrentRequests, config.ErrorPercentThreshold)
+	}
+
+	// 配置默认值
+	hystrix.DefaultTimeout = DefaultConfig.Timeout
+	hystrix.DefaultMaxConcurrent = DefaultConfig.MaxConcurrentRequests
+	hystrix.DefaultVolumeThreshold = DefaultConfig.RequestVolumeThreshold
+	hystrix.DefaultSleepWindow = DefaultConfig.SleepWindow
+	hystrix.DefaultErrorPercentThreshold = DefaultConfig.ErrorPercentThreshold
+
+	log.Println("✅ Hystrix初始化完成")
+}
+
+// InitWithConfig 使用配置初始化Hystrix
+func InitWithConfig(commands map[string]Config) {
+	log.Println("🔧 初始化Hystrix熔断器配置...")
+
+	// 设置服务配置
+	ServiceConfigs = commands
 
 	// 配置所有服务
 	for serviceName, config := range ServiceConfigs {

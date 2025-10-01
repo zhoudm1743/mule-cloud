@@ -17,6 +17,8 @@ func HealthHandler(svc services.ICommonService) gin.HandlerFunc {
 			response.Error(c, err.Error())
 			return
 		}
-		c.JSON(http.StatusOK, resp)
+		c.JSON(http.StatusOK, gin.H{
+			"status": resp,
+		})
 	}
 }

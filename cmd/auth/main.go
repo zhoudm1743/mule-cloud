@@ -4,15 +4,19 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"time"
+
 	cachePkg "mule-cloud/core/cache"
 	cfgPkg "mule-cloud/core/config"
 	"mule-cloud/core/cousul"
 	dbPkg "mule-cloud/core/database"
+	jwtPkg "mule-cloud/core/jwt"
 	loggerPkg "mule-cloud/core/logger"
 	"mule-cloud/core/response"
 
-	"mule-cloud/app/basic/services"
-	"mule-cloud/app/basic/transport"
+	"mule-cloud/app/auth/services"
+	"mule-cloud/app/auth/transport"
+	"mule-cloud/app/gateway/middleware"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -20,7 +24,7 @@ import (
 
 func main() {
 	// 解析命令行参数
-	configPath := flag.String("config", "config/basic.yaml", "配置文件路径")
+	configPath := flag.String("config", "config/auth.yaml", "配置文件路径")
 	flag.Parse()
 
 	// 加载配置
@@ -28,13 +32,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("加载配置失败: %v", err)
 	}
+
 	// 初始化日志系统
 	if err := loggerPkg.InitLogger(&cfg.Log); err != nil {
 		log.Fatalf("初始化日志系统失败: %v", err)
 	}
 	defer loggerPkg.Close()
 
-	loggerPkg.Info("🚀 BasicService 启动中...",
+	loggerPkg.Info("🚀 AuthService 启动中...",
 		zap.String("service", cfg.Server.Name),
 		zap.Int("port", cfg.Server.Port),
 	)
@@ -55,10 +60,14 @@ func main() {
 		defer cachePkg.CloseRedis()
 	}
 
-	// 初始化服务
-	colorSvc := services.NewColorService()
-	sizeSvc := services.NewSizeService()
-	commonSvc := services.NewCommonService()
+	// 初始化JWT管理器
+	jwtManager := jwtPkg.NewJWTManager(
+		[]byte(cfg.JWT.SecretKey),
+		time.Duration(cfg.JWT.ExpireTime)*time.Hour,
+	)
+
+	// 初始化认证服务
+	authSvc := services.NewAuthService(jwtManager)
 
 	// 初始化路由
 	gin.SetMode(cfg.Server.Mode)
@@ -69,29 +78,27 @@ func main() {
 	r.Use(response.RecoveryMiddleware())
 	r.Use(response.UnifiedResponseMiddleware())
 
-	// Basic路由组
-	basic := r.Group("/basic")
+	// 公开路由（不需要认证）
+	public := r.Group("/auth")
 	{
-		// 颜色路由
-		color := basic.Group("/color")
-		{
-			color.GET("/:id", transport.GetColorHandler(colorSvc))
-			color.GET("", transport.GetAllColorsHandler(colorSvc))
-		}
-
-		// 尺寸路由
-		size := basic.Group("/size")
-		{
-			size.GET("/:id", transport.GetSizeHandler(sizeSvc))
-			size.GET("", transport.GetAllSizesHandler(sizeSvc))
-		}
+		public.POST("/login", transport.LoginHandler(authSvc))
+		public.POST("/register", transport.RegisterHandler(authSvc))
+		public.POST("/refresh", transport.RefreshTokenHandler(authSvc))
 	}
 
-	// Common路由组
-	common := r.Group("/common")
+	// 需要认证的路由
+	protected := r.Group("/auth")
+	protected.Use(middleware.JWTAuth(jwtManager))
 	{
-		common.GET("/health", transport.HealthHandler(commonSvc))
+		protected.GET("/profile", transport.GetProfileHandler(authSvc))
+		protected.PUT("/profile", transport.UpdateProfileHandler(authSvc))
+		protected.POST("/password", transport.ChangePasswordHandler(authSvc))
 	}
+
+	// 健康检查（不需要认证）
+	r.GET("/common/health", func(c *gin.Context) {
+		c.JSON(200, gin.H{"status": "ok"})
+	})
 
 	// Consul服务注册（如果启用）
 	if cfg.Consul.Enabled {
@@ -112,6 +119,10 @@ func main() {
 			zap.String("service", serviceConfig.ServiceName),
 			zap.Int("port", serviceConfig.ServicePort),
 			zap.String("consul", cfg.Consul.Address),
+		)
+
+		loggerPkg.Info("正在启动HTTP服务...",
+			zap.String("address", fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port)),
 		)
 
 		err = cousul.RegisterAndRun(r, serviceConfig, cfg.Consul.Address)
