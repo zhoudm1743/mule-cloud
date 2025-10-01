@@ -23,17 +23,10 @@ import (
 // Gateway API网关结构（增强版）
 type Gateway struct {
 	consulClient *api.Client
-	routes       map[string]*RouteConfig
+	routeManager *middleware.DynamicRouteManager // 动态路由管理器
 	jwtManager   *jwtPkg.JWTManager
 	rateLimiter  *middleware.RateLimiter
 	config       *cfgPkg.Config
-}
-
-// RouteConfig 路由配置
-type RouteConfig struct {
-	ServiceName string   // Consul服务名
-	RequireAuth bool     // 是否需要认证
-	RequireRole []string // 需要的角色（为空则只需登录）
 }
 
 // NewGateway 创建增强版网关实例
@@ -52,14 +45,46 @@ func NewGateway(cfg *cfgPkg.Config) (*Gateway, error) {
 		}
 	}
 
-	// 构建路由配置
-	routes := make(map[string]*RouteConfig)
-	for prefix, routeCfg := range cfg.Gateway.Routes {
-		routes[prefix] = &RouteConfig{
-			ServiceName: routeCfg.ServiceName,
-			RequireAuth: routeCfg.RequireAuth,
-			RequireRole: routeCfg.RequireRole,
+	// 创建动态路由管理器
+	var routeManager *middleware.DynamicRouteManager
+	if cfg.Consul.Enabled && client != nil {
+		routeManager = middleware.NewDynamicRouteManager(client)
+		log.Println("✅ 启用动态路由管理器 (基于Consul KV)")
+
+		// 从配置文件迁移路由到Consul（如果Consul中没有配置）
+		if len(routeManager.GetAllRoutes()) == 0 && len(cfg.Gateway.Routes) > 0 {
+			log.Println("🔄 检测到Consul中无路由配置，正在从配置文件迁移...")
+			for prefix, routeCfg := range cfg.Gateway.Routes {
+				config := &middleware.RouteConfig{
+					ServiceName:   routeCfg.ServiceName,
+					GatewayPrefix: "", // 默认无前缀，保持兼容
+					RequireAuth:   routeCfg.RequireAuth,
+					RequireRole:   routeCfg.RequireRole,
+				}
+				if err := routeManager.AddRoute(prefix, config); err != nil {
+					log.Printf("⚠️  迁移路由配置失败 (%s): %v", prefix, err)
+				}
+			}
 		}
+
+		// 从配置文件迁移Hystrix配置到Consul（如果Consul中没有配置）
+		if len(routeManager.GetAllHystrixConfigs()) == 0 && len(cfg.Hystrix.Command) > 0 {
+			log.Println("🔄 检测到Consul中无Hystrix配置，正在从配置文件迁移...")
+			for serviceName, cmdCfg := range cfg.Hystrix.Command {
+				config := &middleware.DynamicHystrixConfig{
+					Timeout:                cmdCfg.Timeout,
+					MaxConcurrentRequests:  cmdCfg.MaxConcurrentRequests,
+					RequestVolumeThreshold: cmdCfg.RequestVolumeThreshold,
+					SleepWindow:            cmdCfg.SleepWindow,
+					ErrorPercentThreshold:  cmdCfg.ErrorPercentThreshold,
+				}
+				if err := routeManager.AddHystrixConfig(serviceName, config); err != nil {
+					log.Printf("⚠️  迁移Hystrix配置失败 (%s): %v", serviceName, err)
+				}
+			}
+		}
+	} else {
+		log.Println("⚠️  Consul未启用，动态路由功能将不可用")
 	}
 
 	// JWT管理器
@@ -74,7 +99,7 @@ func NewGateway(cfg *cfgPkg.Config) (*Gateway, error) {
 
 	return &Gateway{
 		consulClient: client,
-		routes:       routes,
+		routeManager: routeManager,
 		jwtManager:   jwtPkg.NewJWTManager(jwtSecret, expireTime),
 		rateLimiter:  rateLimiter,
 		config:       cfg,
@@ -101,16 +126,39 @@ func (gw *Gateway) getServiceAddress(serviceName string) (string, error) {
 func (gw *Gateway) proxyHandler() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startTime := time.Now()
-		path := c.Request.URL.Path
+		originalPath := c.Request.URL.Path
 
-		// 1. 匹配路由前缀
-		var routeConfig *RouteConfig
-		// var matchedPrefix string  // 不需要去掉前缀，所以不需要这个变量
-		for prefix, config := range gw.routes {
-			if strings.HasPrefix(path, prefix) {
-				routeConfig = config
-				// matchedPrefix = prefix
-				break
+		// 1. 匹配路由配置（从动态路由管理器获取）
+		var routeConfig *middleware.RouteConfig
+		var serviceName string
+
+		if gw.routeManager != nil {
+			// 使用动态路由
+			routes := gw.routeManager.GetAllRoutes()
+			for routePrefix, config := range routes {
+				// 构建完整的匹配路径（网关前缀 + 路由前缀）
+				fullPrefix := config.GatewayPrefix + routePrefix
+				if fullPrefix == "" {
+					fullPrefix = routePrefix
+				}
+				if strings.HasPrefix(originalPath, fullPrefix) {
+					routeConfig = config
+					serviceName = config.ServiceName
+					break
+				}
+			}
+		} else {
+			// 降级到静态路由（从配置文件）
+			for prefix, staticCfg := range gw.config.Gateway.Routes {
+				if strings.HasPrefix(originalPath, prefix) {
+					routeConfig = &middleware.RouteConfig{
+						ServiceName: staticCfg.ServiceName,
+						RequireAuth: staticCfg.RequireAuth,
+						RequireRole: staticCfg.RequireRole,
+					}
+					serviceName = staticCfg.ServiceName
+					break
+				}
 			}
 		}
 
@@ -120,7 +168,7 @@ func (gw *Gateway) proxyHandler() gin.HandlerFunc {
 		}
 
 		// 设置服务名称（供Hystrix中间件使用）
-		c.Set("service_name", routeConfig.ServiceName)
+		c.Set("service_name", serviceName)
 
 		// 2. 认证检查（如果需要）
 		if routeConfig.RequireAuth {
@@ -141,10 +189,10 @@ func (gw *Gateway) proxyHandler() gin.HandlerFunc {
 		}
 
 		// 3. 从Consul获取服务地址
-		targetURL, err := gw.getServiceAddress(routeConfig.ServiceName)
+		targetURL, err := gw.getServiceAddress(serviceName)
 		if err != nil {
-			log.Printf("[网关错误] 服务不可用: %s, 错误: %v", routeConfig.ServiceName, err)
-			c.JSON(503, gin.H{"code": 503, "msg": fmt.Sprintf("服务不可用: %s", routeConfig.ServiceName)})
+			log.Printf("[网关错误] 服务不可用: %s, 错误: %v", serviceName, err)
+			c.JSON(503, gin.H{"code": 503, "msg": fmt.Sprintf("服务不可用: %s", serviceName)})
 			return
 		}
 
@@ -152,9 +200,16 @@ func (gw *Gateway) proxyHandler() gin.HandlerFunc {
 		target, _ := url.Parse(targetURL)
 		proxy := httputil.NewSingleHostReverseProxy(target)
 
-		// 5. 修改请求（保留完整路径，不去掉前缀）
-		originalPath := c.Request.URL.Path
-		// c.Request.URL.Path = strings.TrimPrefix(originalPath, matchedPrefix) // 不去掉前缀
+		// 5. 修改请求路径（去掉网关配置的前缀）
+		targetPath := originalPath
+		if routeConfig.GatewayPrefix != "" && strings.HasPrefix(originalPath, routeConfig.GatewayPrefix) {
+			// 去掉网关前缀，保留路由前缀
+			targetPath = strings.TrimPrefix(originalPath, routeConfig.GatewayPrefix)
+			if targetPath == "" {
+				targetPath = "/"
+			}
+		}
+		c.Request.URL.Path = targetPath
 		c.Request.URL.Host = target.Host
 		c.Request.URL.Scheme = target.Scheme
 
@@ -174,12 +229,13 @@ func (gw *Gateway) proxyHandler() gin.HandlerFunc {
 		c.Request.Host = target.Host
 
 		// 7. 记录日志
-		log.Printf("[网关转发] %s %s → %s%s (服务: %s, 用户: %v)",
+		log.Printf("[网关转发] %s %s → %s%s (服务: %s, 前缀: %s, 用户: %v)",
 			c.Request.Method,
 			originalPath,
 			targetURL,
 			c.Request.URL.Path,
-			routeConfig.ServiceName,
+			serviceName,
+			routeConfig.GatewayPrefix,
 			c.GetString("username"),
 		)
 
@@ -212,8 +268,18 @@ func (gw *Gateway) healthHandler() gin.HandlerFunc {
 			// 检查服务状态
 			services := make(map[string]string)
 			serviceSet := make(map[string]bool)
-			for _, routeConfig := range gw.routes {
-				serviceSet[routeConfig.ServiceName] = true
+
+			// 从动态路由管理器获取服务列表
+			if gw.routeManager != nil {
+				routes := gw.routeManager.GetAllRoutes()
+				for _, routeConfig := range routes {
+					serviceSet[routeConfig.ServiceName] = true
+				}
+			} else {
+				// 降级到静态配置
+				for _, routeConfig := range gw.config.Gateway.Routes {
+					serviceSet[routeConfig.ServiceName] = true
+				}
 			}
 
 			for svcName := range serviceSet {
@@ -285,50 +351,52 @@ func main() {
 		public.GET("/health", gateway.healthHandler())
 	}
 
-	// 熔断器管理接口
+	// 网关管理接口（动态路由和熔断器管理）
 	admin := r.Group("/gateway")
 	{
+		// Hystrix 指标监控
 		admin.GET("/hystrix/metrics", middleware.HystrixMetricsHandler())
 		admin.GET("/hystrix/metrics/:service", middleware.HystrixMetricsHandler())
+
+		// 动态路由管理 API（需要动态路由管理器）
+		if gateway.routeManager != nil {
+			adminHandlers := middleware.NewAdminHandlers(gateway.routeManager)
+
+			// 路由配置管理
+			adminAPI := admin.Group("/admin")
+			{
+				// 路由管理
+				adminAPI.GET("/routes", adminHandlers.ListRoutes)
+				adminAPI.GET("/routes/*prefix", adminHandlers.GetRoute)
+				adminAPI.POST("/routes", adminHandlers.AddRoute)
+				adminAPI.PUT("/routes/*prefix", adminHandlers.UpdateRoute)
+				adminAPI.DELETE("/routes/*prefix", adminHandlers.DeleteRoute)
+
+				// Hystrix 配置管理
+				adminAPI.GET("/hystrix", adminHandlers.ListHystrixConfigs)
+				adminAPI.GET("/hystrix/:service", adminHandlers.GetHystrixConfig)
+				adminAPI.POST("/hystrix", adminHandlers.AddHystrixConfig)
+				adminAPI.PUT("/hystrix/:service", adminHandlers.UpdateHystrixConfig)
+				adminAPI.DELETE("/hystrix/:service", adminHandlers.DeleteHystrixConfig)
+
+				// 配置重载
+				adminAPI.POST("/reload", adminHandlers.ReloadConfig)
+			}
+		}
 	}
 
-	// 业务接口（需要认证 + 限流 + 熔断）
-	api := r.Group("")
+	// 业务接口（动态路由）
+	// 使用 NoRoute 作为兜底，根据路由配置决定是否需要认证
+	var handlers []gin.HandlerFunc
 	if cfg.Gateway.RateLimit.Enabled {
-		api.Use(gateway.rateLimiter.Middleware()) // 限流
+		handlers = append(handlers, gateway.rateLimiter.Middleware())
 	}
-	api.Use(middleware.OptionalAuth(gateway.jwtManager)) // 可选认证（根据路由配置决定）
+	handlers = append(handlers, middleware.OptionalAuth(gateway.jwtManager))
 	if cfg.Hystrix.Enabled {
-		api.Use(middleware.HystrixMiddleware()) // Hystrix熔断器
+		handlers = append(handlers, middleware.HystrixMiddleware())
 	}
-	{
-		api.Any("/auth/*path", gateway.proxyHandler())
-		api.Any("/test/*path", gateway.proxyHandler())
-		api.Any("/basic/*path", gateway.proxyHandler())
-		api.Any("/admin/*path", gateway.proxyHandler())
-	}
-
-	// 打印路由信息
-	loggerPkg.Info("📋 网关路由注册完成")
-	loggerPkg.Info("公开接口:")
-	loggerPkg.Info("  GET    /api/health           - 健康检查")
-	loggerPkg.Info("管理接口:")
-	loggerPkg.Info("  GET    /gateway/hystrix/metrics         - 熔断器指标")
-	loggerPkg.Info("  GET    /gateway/hystrix/metrics/:service - 单个服务熔断器指标")
-	loggerPkg.Info("代理路由 (支持所有HTTP方法):")
-	for path, route := range cfg.Gateway.Routes {
-		authStatus := "❌ 无需认证"
-		if route.RequireAuth {
-			authStatus = "✅ 需要认证"
-		}
-		roleStatus := ""
-		if len(route.RequireRole) > 0 {
-			roleStatus = fmt.Sprintf(", 需要角色: %v", route.RequireRole)
-		}
-		loggerPkg.Info(fmt.Sprintf("  ANY    %s/* → %s (%s%s)",
-			path, route.ServiceName, authStatus, roleStatus))
-	}
-
+	handlers = append(handlers, gateway.proxyHandler())
+	r.NoRoute(handlers...)
 	// 启动网关
 	port := fmt.Sprintf(":%d", cfg.Server.Port)
 

@@ -2,49 +2,86 @@ package endpoint
 
 import (
 	"context"
+	"mule-cloud/app/basic/dto"
 	"mule-cloud/app/basic/services"
 
 	"github.com/go-kit/kit/endpoint"
 )
 
-// SizeRequest 尺寸请求
-type SizeRequest struct {
-	ID string `uri:"id" binding:"required"`
-}
-
-// SizeResponse 尺寸响应
-type SizeResponse struct {
-	Size *services.Size `json:"size"`
-}
-
-// SizeListResponse 尺寸列表响应
-type SizeListResponse struct {
-	Sizes []*services.Size `json:"sizes"`
-	Total int              `json:"total"`
-}
-
 // GetSizeEndpoint 获取尺寸端点
 func GetSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		req := request.(SizeRequest)
+		req := request.(dto.SizeGetRequest)
 		size, err := svc.Get(req.ID)
 		if err != nil {
 			return nil, err
 		}
-		return SizeResponse{Size: size}, nil
+		return dto.SizeResponse{Size: size}, nil
 	}
 }
 
-// GetAllSizesEndpoint 获取所有尺寸端点
+// GetAllSizesEndpoint 获取所有尺寸端点（不分页）
 func GetAllSizesEndpoint(svc services.ISizeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		sizes, err := svc.GetAll()
+		req := request.(dto.SizeListRequest)
+		sizes, err := svc.GetAll(req)
 		if err != nil {
 			return nil, err
 		}
-		return SizeListResponse{
+		return dto.SizeListResponse{
 			Sizes: sizes,
-			Total: len(sizes),
+			Total: int64(len(sizes)),
 		}, nil
+	}
+}
+
+// ListSizesEndpoint 尺寸列表端点（分页）
+func ListSizesEndpoint(svc services.ISizeService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(dto.SizeListRequest)
+		sizes, total, err := svc.List(req)
+		if err != nil {
+			return nil, err
+		}
+		return dto.SizeListResponse{
+			Sizes: sizes,
+			Total: total,
+		}, nil
+	}
+}
+
+// CreateSizeEndpoint 创建尺寸端点
+func CreateSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(dto.SizeCreateRequest)
+		size, err := svc.Create(req)
+		if err != nil {
+			return nil, err
+		}
+		return dto.SizeResponse{Size: size}, nil
+	}
+}
+
+// UpdateSizeEndpoint 更新尺寸端点
+func UpdateSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(dto.SizeUpdateRequest)
+		size, err := svc.Update(req)
+		if err != nil {
+			return nil, err
+		}
+		return dto.SizeResponse{Size: size}, nil
+	}
+}
+
+// DeleteSizeEndpoint 删除尺寸端点
+func DeleteSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(dto.SizeGetRequest)
+		err := svc.Delete(req.ID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{"message": "删除成功"}, nil
 	}
 }

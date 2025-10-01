@@ -2,17 +2,16 @@ package services
 
 import (
 	"context"
-	"crypto/md5"
 	"errors"
 	"fmt"
 	"mule-cloud/app/auth/dto"
-	"mule-cloud/core/database"
 	jwtPkg "mule-cloud/core/jwt"
-	"mule-cloud/models"
+	"mule-cloud/internal/models"
+	"mule-cloud/internal/repository"
+	"mule-cloud/util"
 	"time"
 
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 var (
@@ -36,15 +35,15 @@ type IAuthService interface {
 
 // AuthService 认证服务实现
 type AuthService struct {
-	collection *mongo.Collection
+	repo       repository.AdminRepository
 	jwtManager *jwtPkg.JWTManager
 }
 
 // NewAuthService 创建认证服务
 func NewAuthService(jwtManager *jwtPkg.JWTManager) IAuthService {
-	collection := database.MongoDB.Collection("admins")
+	repo := repository.NewAdminRepository()
 	return &AuthService{
-		collection: collection,
+		repo:       repo,
 		jwtManager: jwtManager,
 	}
 }
@@ -54,15 +53,13 @@ func (s *AuthService) Login(req dto.LoginRequest) (*dto.LoginResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 查找用户
-	filter := bson.M{"phone": req.Phone}
-	var admin models.Admin
-	err := s.collection.FindOne(ctx, filter).Decode(&admin)
+	// 查找用户（自动排除软删除）
+	admin, err := s.repo.GetByPhone(ctx, req.Phone)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
-			return nil, ErrUserNotFound
-		}
 		return nil, fmt.Errorf("查询用户失败: %w", err)
+	}
+	if admin == nil {
+		return nil, ErrUserNotFound
 	}
 
 	// 验证密码
@@ -87,7 +84,7 @@ func (s *AuthService) Login(req dto.LoginRequest) (*dto.LoginResponse, error) {
 
 	return &dto.LoginResponse{
 		Token:     token,
-		UserID:    admin.Phone,
+		UserID:    admin.ID,
 		Phone:     admin.Phone,
 		Nickname:  admin.Nickname,
 		Avatar:    admin.Avatar,
@@ -101,19 +98,18 @@ func (s *AuthService) Register(req dto.RegisterRequest) (*dto.RegisterResponse, 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 检查用户是否已存在
-	filter := bson.M{"phone": req.Phone}
-	count, err := s.collection.CountDocuments(ctx, filter)
+	// 检查用户是否已存在（排除软删除）
+	existing, err := s.repo.GetByPhone(ctx, req.Phone)
 	if err != nil {
 		return nil, fmt.Errorf("检查用户失败: %w", err)
 	}
-	if count > 0 {
+	if existing != nil {
 		return nil, ErrUserExists
 	}
 
 	// 创建新用户
 	now := time.Now().Unix()
-	admin := models.Admin{
+	admin := &models.Admin{
 		Phone:     req.Phone,
 		Password:  hashPassword(req.Password),
 		Nickname:  req.Nickname,
@@ -121,17 +117,18 @@ func (s *AuthService) Register(req dto.RegisterRequest) (*dto.RegisterResponse, 
 		Status:    1,                // 默认启用
 		Role:      []string{"user"}, // 默认普通用户角色
 		Avatar:    "",
+		IsDeleted: 0, // 未删除
 		CreatedAt: now,
 		UpdatedAt: now,
 	}
 
-	_, err = s.collection.InsertOne(ctx, admin)
+	err = s.repo.Create(ctx, admin)
 	if err != nil {
 		return nil, fmt.Errorf("创建用户失败: %w", err)
 	}
 
 	return &dto.RegisterResponse{
-		UserID:   admin.Phone,
+		UserID:   admin.ID,
 		Phone:    admin.Phone,
 		Nickname: admin.Nickname,
 		Message:  "注册成功",
@@ -159,18 +156,24 @@ func (s *AuthService) GetProfile(userID string) (*dto.GetProfileResponse, error)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	filter := bson.M{"phone": userID}
-	var admin models.Admin
-	err := s.collection.FindOne(ctx, filter).Decode(&admin)
+	// 尝试通过 ID 或 Phone 查询（自动排除软删除）
+	admin, err := s.repo.Get(ctx, userID)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, fmt.Errorf("查询用户失败: %w", err)
+	}
+	if admin == nil {
+		// 尝试通过 Phone 查询
+		admin, err = s.repo.GetByPhone(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("查询用户失败: %w", err)
+		}
+		if admin == nil {
 			return nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("查询用户失败: %w", err)
 	}
 
 	return &dto.GetProfileResponse{
-		UserID:    admin.Phone,
+		UserID:    admin.ID,
 		Phone:     admin.Phone,
 		Nickname:  admin.Nickname,
 		Avatar:    admin.Avatar,
@@ -187,32 +190,26 @@ func (s *AuthService) UpdateProfile(userID string, req dto.UpdateProfileRequest)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	filter := bson.M{"phone": userID}
+	// 构建更新字段
 	update := bson.M{
-		"$set": bson.M{
-			"updated_at": time.Now().Unix(),
-		},
+		"updated_at": time.Now().Unix(),
 	}
 
 	// 只更新非空字段
-	setFields := update["$set"].(bson.M)
 	if req.Nickname != "" {
-		setFields["nickname"] = req.Nickname
+		update["nickname"] = req.Nickname
 	}
 	if req.Avatar != "" {
-		setFields["avatar"] = req.Avatar
+		update["avatar"] = req.Avatar
 	}
 	if req.Email != "" {
-		setFields["email"] = req.Email
+		update["email"] = req.Email
 	}
 
-	result, err := s.collection.UpdateOne(ctx, filter, update)
+	// 更新用户（自动处理软删除）
+	err := s.repo.Update(ctx, userID, update)
 	if err != nil {
 		return nil, fmt.Errorf("更新用户失败: %w", err)
-	}
-
-	if result.MatchedCount == 0 {
-		return nil, ErrUserNotFound
 	}
 
 	return &dto.UpdateProfileResponse{
@@ -226,15 +223,20 @@ func (s *AuthService) ChangePassword(userID string, req dto.ChangePasswordReques
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 查找用户并验证旧密码
-	filter := bson.M{"phone": userID}
-	var admin models.Admin
-	err := s.collection.FindOne(ctx, filter).Decode(&admin)
+	// 查找用户（自动排除软删除）
+	admin, err := s.repo.Get(ctx, userID)
 	if err != nil {
-		if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, fmt.Errorf("查询用户失败: %w", err)
+	}
+	if admin == nil {
+		// 尝试通过 Phone 查询
+		admin, err = s.repo.GetByPhone(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("查询用户失败: %w", err)
+		}
+		if admin == nil {
 			return nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("查询用户失败: %w", err)
 	}
 
 	// 验证旧密码
@@ -244,13 +246,11 @@ func (s *AuthService) ChangePassword(userID string, req dto.ChangePasswordReques
 
 	// 更新密码
 	update := bson.M{
-		"$set": bson.M{
-			"password":   hashPassword(req.NewPassword),
-			"updated_at": time.Now().Unix(),
-		},
+		"password":   hashPassword(req.NewPassword),
+		"updated_at": time.Now().Unix(),
 	}
 
-	_, err = s.collection.UpdateOne(ctx, filter, update)
+	err = s.repo.Update(ctx, admin.ID, update)
 	if err != nil {
 		return nil, fmt.Errorf("更新密码失败: %w", err)
 	}
@@ -270,8 +270,7 @@ func (s *AuthService) ValidateToken(token string) (*jwtPkg.Claims, error) {
 	return claims, nil
 }
 
-// hashPassword 密码加密（使用MD5，生产环境建议使用bcrypt）
+// hashPassword 密码加密（使用MD5加盐）
 func hashPassword(password string) string {
-	hash := md5.Sum([]byte(password))
-	return fmt.Sprintf("%x", hash)
+	return util.ToolsUtil.Md5(password + "mule-zdm")
 }

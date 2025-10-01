@@ -1,10 +1,10 @@
 package dto
 
-import "mule-cloud/models"
+import "mule-cloud/internal/models"
 
 // ColorRequest 颜色请求
 type ColorListRequest struct {
-	ID    string `uri:"id"`
+	ID    string `uri:"id" query:"id"`
 	Value string `query:"value"`
 
 	Page     int64 `query:"page"`
@@ -30,5 +30,5 @@ type ColorResponse struct {
 // ColorListResponse 颜色列表响应
 type ColorListResponse struct {
 	Colors []models.Basic `json:"colors"`
-	Total  int            `json:"total"`
+	Total  int64          `json:"total"`
 }

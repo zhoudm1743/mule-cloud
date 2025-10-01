@@ -29,15 +29,100 @@ func GetColorHandler(svc services.IColorService) gin.HandlerFunc {
 	}
 }
 
-// GetAllColorsHandler 获取所有颜色处理器
+// GetAllColorsHandler 获取所有颜色处理器（不分页）
 func GetAllColorsHandler(svc services.IColorService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.ColorListRequest
+		if err := c.ShouldBind(&req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		ep := endpoint.GetAllColorsEndpoint(svc)
+		resp, err := ep(c.Request.Context(), req)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}
+
+// ListColorsHandler 颜色列表处理器（分页）
+func ListColorsHandler(svc services.IColorService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.ColorListRequest
+		if err := c.ShouldBind(&req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		ep := endpoint.ListColorsEndpoint(svc)
+		resp, err := ep(c.Request.Context(), req)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}
+
+// CreateColorHandler 创建颜色处理器
+func CreateColorHandler(svc services.IColorService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.ColorCreateRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		ep := endpoint.CreateColorEndpoint(svc)
+		resp, err := ep(c.Request.Context(), req)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}
+
+// UpdateColorHandler 更新颜色处理器
+func UpdateColorHandler(svc services.IColorService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.ColorUpdateRequest
+		if err := c.ShouldBindUri(&req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		ep := endpoint.UpdateColorEndpoint(svc)
+		resp, err := ep(c.Request.Context(), req)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}
+
+// DeleteColorHandler 删除颜色处理器
+func DeleteColorHandler(svc services.IColorService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.ColorListRequest
 		if err := c.ShouldBindUri(&req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
-		ep := endpoint.GetAllColorsEndpoint(svc)
+
+		ep := endpoint.DeleteColorEndpoint(svc)
 		resp, err := ep(c.Request.Context(), req)
 		if err != nil {
 			response.Error(c, err.Error())

@@ -125,7 +125,16 @@ func main() {
 			zap.String("address", fmt.Sprintf("0.0.0.0:%d", cfg.Server.Port)),
 		)
 
-		err = cousul.RegisterAndRun(r, serviceConfig, cfg.Consul.Address)
+		// 自动注册路由配置到网关
+		routeConfig := &cousul.RouteConfig{
+			Prefix:        "/auth",  // 微服务路径
+			GatewayPrefix: "/admin", // 无网关前缀（公开访问）
+			ServiceName:   cfg.Consul.ServiceName,
+			RequireAuth:   false, // auth 服务本身不需要认证
+			RequireRole:   []string{},
+		}
+
+		err = cousul.RegisterAndRun(r, serviceConfig, cfg.Consul.Address, routeConfig)
 		if err != nil {
 			loggerPkg.Fatal("服务启动失败", zap.Error(err))
 		}

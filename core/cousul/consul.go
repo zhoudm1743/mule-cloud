@@ -1,11 +1,13 @@
 package cousul
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/gin-gonic/gin"
@@ -159,6 +161,38 @@ func (c *ConsulClient) GetServiceAddress(serviceName string) (string, error) {
 	return fmt.Sprintf("%s:%d", service.Address, service.Port), nil
 }
 
+// RegisterRoute 注册路由配置到网关
+func (c *ConsulClient) RegisterRoute(routeConfig *RouteConfig) error {
+	// 确保前缀有前导斜杠
+	if !strings.HasPrefix(routeConfig.Prefix, "/") {
+		routeConfig.Prefix = "/" + routeConfig.Prefix
+	}
+
+	// 序列化路由配置
+	data, err := json.Marshal(routeConfig)
+	if err != nil {
+		return fmt.Errorf("序列化路由配置失败: %v", err)
+	}
+
+	// 构建 KV 键（网关路由配置路径）
+	key := fmt.Sprintf("gateway/routes%s", routeConfig.Prefix)
+
+	// 创建 KV 对
+	kv := &api.KVPair{
+		Key:   key,
+		Value: data,
+	}
+
+	// 写入 Consul KV
+	_, err = c.client.KV().Put(kv, nil)
+	if err != nil {
+		return fmt.Errorf("保存路由配置到Consul失败: %v", err)
+	}
+
+	log.Printf("[Consul] 路由配置注册成功 -> Key: %s, Service: %s", key, routeConfig.ServiceName)
+	return nil
+}
+
 // getLocalIP 获取本机非回环IP地址
 func getLocalIP() (string, error) {
 	addrs, err := net.InterfaceAddrs()
@@ -177,8 +211,18 @@ func getLocalIP() (string, error) {
 	return "", fmt.Errorf("未找到有效的本机IP")
 }
 
+// RouteConfig 路由配置
+type RouteConfig struct {
+	Prefix        string   `json:"prefix"`         // 路由前缀，如 "/system"（微服务路径）
+	GatewayPrefix string   `json:"gateway_prefix"` // 网关前缀，如 "/admin"（转发时会去掉）
+	ServiceName   string   `json:"service_name"`   // 服务名称
+	RequireAuth   bool     `json:"require_auth"`   // 是否需要认证
+	RequireRole   []string `json:"require_role"`   // 需要的角色
+}
+
 // RegisterAndRun 注册服务到Consul并启动HTTP服务
 // 包含优雅关闭功能（监听 SIGINT 和 SIGTERM 信号）
+// 自动注册路由配置到网关（如果提供路由配置）
 // 示例用法：
 //
 //	cousul.RegisterAndRun(r, &cousul.ServiceConfig{
@@ -186,7 +230,15 @@ func getLocalIP() (string, error) {
 //	    ServicePort:    8080,
 //	    Tags:           []string{"api", "v1"},
 //	}, "127.0.0.1:8500")
-func RegisterAndRun(router *gin.Engine, config *ServiceConfig, consulAddress string) error {
+//
+//	// 带路由自动注册（后台接口，需要 /admin 前缀）
+//	cousul.RegisterAndRun(r, &cousul.ServiceConfig{...}, "127.0.0.1:8500", &cousul.RouteConfig{
+//	    Prefix:        "/system",      // 微服务路径前缀
+//	    GatewayPrefix: "/admin",       // 网关前缀（转发时去掉）
+//	    ServiceName:   "systemservice",
+//	    RequireAuth:   true,
+//	})
+func RegisterAndRun(router *gin.Engine, config *ServiceConfig, consulAddress string, routeConfig ...*RouteConfig) error {
 	// 创建Consul客户端
 	consulClient, err := NewConsulClient(consulAddress)
 	if err != nil {
@@ -199,6 +251,22 @@ func RegisterAndRun(router *gin.Engine, config *ServiceConfig, consulAddress str
 	if err != nil {
 		log.Fatalf("服务注册失败: %v", err)
 		return err
+	}
+
+	// 自动注册路由配置（如果提供）
+	if len(routeConfig) > 0 && routeConfig[0] != nil {
+		err = consulClient.RegisterRoute(routeConfig[0])
+		if err != nil {
+			log.Printf("⚠️  路由配置注册失败: %v", err)
+			// 不阻断服务启动，只记录警告
+		} else {
+			gwPrefix := routeConfig[0].GatewayPrefix
+			if gwPrefix == "" {
+				gwPrefix = "(无前缀)"
+			}
+			log.Printf("✅ 路由配置注册成功: %s%s -> %s (网关前缀: %s)",
+				gwPrefix, routeConfig[0].Prefix, routeConfig[0].ServiceName, gwPrefix)
+		}
 	}
 
 	// 监听退出信号，优雅关闭

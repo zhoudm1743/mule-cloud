@@ -46,6 +46,12 @@ func InitMongoDB(cfg *config.MongoDBConfig) (*mongo.Client, error) {
 		clientOpts.ApplyURI(uri)
 	}
 
+	// 配置BSON选项：将ObjectID自动转换为十六进制字符串
+	bsonOpts := &options.BSONOptions{
+		ObjectIDAsHexString: true,
+	}
+	clientOpts.SetBSONOptions(bsonOpts)
+
 	// 连接池配置
 	if cfg.MaxPoolSize > 0 {
 		clientOpts.SetMaxPoolSize(cfg.MaxPoolSize)
@@ -62,10 +68,10 @@ func InitMongoDB(cfg *config.MongoDBConfig) (*mongo.Client, error) {
 	// 命令监控（开发环境）
 	cmdMonitor := &event.CommandMonitor{
 		Started: func(ctx context.Context, e *event.CommandStartedEvent) {
-			// log.Printf("[MongoDB] 执行命令: %s", e.CommandName)
+			log.Printf("[MongoDB] 执行命令: %s, 命令内容: %v", e.CommandName, e.Command)
 		},
 		Succeeded: func(ctx context.Context, e *event.CommandSucceededEvent) {
-			// log.Printf("[MongoDB] 命令成功: %s, 耗时: %dms", e.CommandName, e.DurationNanos/1e6)
+			// log.Printf("[MongoDB] 命令成功: %s, 耗时: %dms", e.CommandName, e.Duration.Milliseconds())
 		},
 		Failed: func(ctx context.Context, e *event.CommandFailedEvent) {
 			log.Printf("[MongoDB] 命令失败: %s, 错误: %v", e.CommandName, e.Failure)
