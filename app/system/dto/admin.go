@@ -8,6 +8,7 @@ type AdminListRequest struct {
 	Phone    string `query:"phone"`
 	Email    string `query:"email"`
 	Nickname string `query:"nickname"`
+	TenantID string `query:"tenant_id"` // 租户ID过滤
 	Status   *int   `query:"status"`
 
 	Page     int64 `query:"page"`
@@ -19,7 +20,8 @@ type AdminCreateRequest struct {
 	Password string   `json:"password" binding:"required"`
 	Nickname string   `json:"nickname"`
 	Email    string   `json:"email"`
-	Role     []string `json:"role"`
+	TenantID string   `json:"tenant_id"` // 租户ID（空表示系统级用户）
+	Roles    []string `json:"roles"`
 	Avatar   string   `json:"avatar"`
 	Status   int      `json:"status"`
 }
@@ -30,7 +32,8 @@ type AdminUpdateRequest struct {
 	Password string   `json:"password"`
 	Nickname string   `json:"nickname"`
 	Email    string   `json:"email"`
-	Role     []string `json:"role"`
+	TenantID *string  `json:"tenant_id"` // 租户ID（使用指针以支持更新为空）
+	Roles    []string `json:"roles"`
 	Avatar   string   `json:"avatar"`
 	Status   *int     `json:"status"`
 }
@@ -45,4 +48,3 @@ type AdminListResponse struct {
 	Admins []models.Admin `json:"admins"`
 	Total  int64          `json:"total"`
 }
-

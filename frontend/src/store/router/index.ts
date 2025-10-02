@@ -40,16 +40,15 @@ export const useRouteStore = defineStore('route-store', {
     async initRouteInfo() {
       if (import.meta.env.VITE_ROUTE_LOAD_MODE === 'dynamic') {
         try {
-          // Get user's route
-          const result = await fetchUserRoutes({
-            id: 1,
-          })
+          // Get user's route from JWT token (不传 id 参数，后端自动从 JWT 获取)
+          const result = await fetchUserRoutes()
 
           if (!result.isSuccess || !result.data) {
             throw new Error('Failed to fetch user routes')
           }
 
-          return result.data
+          // 后端返回的是 { routes: [...] }，需要提取 routes 数组
+          return result.data.routes
         }
         catch (error) {
           console.error('Failed to initialize route info:', error)

@@ -54,6 +54,9 @@ func (s *AdminService) List(req dto.AdminListRequest) ([]models.Admin, int64, er
 	if req.Nickname != "" {
 		filter["nickname"] = bson.M{"$regex": req.Nickname, "$options": "i"} // 模糊查询
 	}
+	if req.TenantID != "" {
+		filter["tenant_id"] = req.TenantID // 租户过滤
+	}
 	if req.Status != nil {
 		filter["status"] = *req.Status
 	}
@@ -106,6 +109,9 @@ func (s *AdminService) GetAll(req dto.AdminListRequest) ([]models.Admin, error) 
 	if req.Nickname != "" {
 		filter["nickname"] = bson.M{"$regex": req.Nickname, "$options": "i"}
 	}
+	if req.TenantID != "" {
+		filter["tenant_id"] = req.TenantID // 租户过滤
+	}
 	if req.Status != nil {
 		filter["status"] = *req.Status
 	}
@@ -142,7 +148,8 @@ func (s *AdminService) Create(req dto.AdminCreateRequest) (*models.Admin, error)
 		Password:  password,
 		Nickname:  req.Nickname,
 		Email:     req.Email,
-		Role:      req.Role,
+		TenantID:  req.TenantID, // 租户ID
+		Roles:     req.Roles,    // 使用请求中的角色
 		Avatar:    req.Avatar,
 		Status:    req.Status,
 		IsDeleted: 0, // 初始化为未删除
@@ -178,8 +185,11 @@ func (s *AdminService) Update(req dto.AdminUpdateRequest) (*models.Admin, error)
 	if req.Email != "" {
 		update["email"] = req.Email
 	}
-	if req.Role != nil {
-		update["role"] = req.Role
+	if req.TenantID != nil {
+		update["tenant_id"] = *req.TenantID
+	}
+	if req.Roles != nil {
+		update["roles"] = req.Roles
 	}
 	if req.Avatar != "" {
 		update["avatar"] = req.Avatar
@@ -201,4 +211,71 @@ func (s *AdminService) Update(req dto.AdminUpdateRequest) (*models.Admin, error)
 func (s *AdminService) Delete(id string) error {
 	ctx := context.Background()
 	return s.repo.Delete(ctx, id)
+}
+
+// AssignRoles 分配角色给管理员
+func (s *AdminService) AssignRoles(ctx context.Context, adminID string, roleIDs []string, updatedBy string) error {
+	// 检查管理员是否存在
+	admin, err := s.repo.Get(ctx, adminID)
+	if err != nil {
+		return err
+	}
+	if admin == nil {
+		return repository.ErrNotFound
+	}
+
+	// 更新角色
+	update := bson.M{
+		"roles":      roleIDs,
+		"updated_by": updatedBy,
+		"updated_at": time.Now().Unix(),
+	}
+
+	return s.repo.Update(ctx, adminID, update)
+}
+
+// GetAdminRoles 获取管理员的角色
+func (s *AdminService) GetAdminRoles(ctx context.Context, adminID string) ([]string, error) {
+	admin, err := s.repo.Get(ctx, adminID)
+	if err != nil {
+		return nil, err
+	}
+	if admin == nil {
+		return nil, repository.ErrNotFound
+	}
+
+	if admin.Roles == nil {
+		return []string{}, nil
+	}
+
+	return admin.Roles, nil
+}
+
+// RemoveRole 移除管理员的某个角色
+func (s *AdminService) RemoveRole(ctx context.Context, adminID string, roleID string, updatedBy string) error {
+	// 获取管理员当前角色
+	admin, err := s.repo.Get(ctx, adminID)
+	if err != nil {
+		return err
+	}
+	if admin == nil {
+		return repository.ErrNotFound
+	}
+
+	// 过滤掉要移除的角色
+	newRoles := []string{}
+	for _, r := range admin.Roles {
+		if r != roleID {
+			newRoles = append(newRoles, r)
+		}
+	}
+
+	// 更新角色
+	update := bson.M{
+		"roles":      newRoles,
+		"updated_by": updatedBy,
+		"updated_at": time.Now().Unix(),
+	}
+
+	return s.repo.Update(ctx, adminID, update)
 }

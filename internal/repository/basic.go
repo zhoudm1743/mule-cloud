@@ -65,6 +65,18 @@ type BasicRepository interface {
 
 	// GetCollection 获取MongoDB集合（供高级用法使用）
 	GetCollection() *mongo.Collection
+
+	// FindByTenant 查询租户下的记录（包括公共数据）
+	FindByTenant(ctx context.Context, tenantID string, filter bson.M) ([]*models.Basic, error)
+
+	// FindByTenantWithPage 分页查询租户下的记录（包括公共数据）
+	FindByTenantWithPage(ctx context.Context, tenantID string, filter bson.M, page, pageSize int64) ([]*models.Basic, error)
+
+	// CountByTenant 统计租户下的记录数（包括公共数据）
+	CountByTenant(ctx context.Context, tenantID string, filter bson.M) (int64, error)
+
+	// CheckOwnership 检查记录是否属于指定租户（用于修改/删除权限检查）
+	CheckOwnership(ctx context.Context, id string, tenantID string) (bool, error)
 }
 
 // basicRepository Basic数据仓库实现
@@ -467,4 +479,55 @@ func (r *basicRepository) HardDeleteMany(ctx context.Context, ids []string) (int
 // GetCollection 获取MongoDB集合（供高级用法使用，如需要使用 options）
 func (r *basicRepository) GetCollection() *mongo.Collection {
 	return r.collection
+}
+
+// FindByTenant 查询租户下的记录（包括公共数据）
+func (r *basicRepository) FindByTenant(ctx context.Context, tenantID string, filter bson.M) ([]*models.Basic, error) {
+	// 添加租户条件：自己的数据 OR 公共数据
+	filter["$or"] = []bson.M{
+		{"tenant_id": tenantID},
+		{"is_common": true},
+	}
+	filter["is_deleted"] = 0
+
+	return r.Find(ctx, filter)
+}
+
+// FindByTenantWithPage 分页查询租户下的记录（包括公共数据）
+func (r *basicRepository) FindByTenantWithPage(ctx context.Context, tenantID string, filter bson.M, page, pageSize int64) ([]*models.Basic, error) {
+	// 添加租户条件：自己的数据 OR 公共数据
+	filter["$or"] = []bson.M{
+		{"tenant_id": tenantID},
+		{"is_common": true},
+	}
+	filter["is_deleted"] = 0
+
+	return r.FindWithPage(ctx, filter, page, pageSize)
+}
+
+// CountByTenant 统计租户下的记录数（包括公共数据）
+func (r *basicRepository) CountByTenant(ctx context.Context, tenantID string, filter bson.M) (int64, error) {
+	// 添加租户条件：自己的数据 OR 公共数据
+	filter["$or"] = []bson.M{
+		{"tenant_id": tenantID},
+		{"is_common": true},
+	}
+	filter["is_deleted"] = 0
+
+	return r.Count(ctx, filter)
+}
+
+// CheckOwnership 检查记录是否属于指定租户（用于修改/删除权限检查）
+// 返回 true 表示可以修改/删除（属于该租户且不是公共数据）
+func (r *basicRepository) CheckOwnership(ctx context.Context, id string, tenantID string) (bool, error) {
+	basic, err := r.Get(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	if basic == nil {
+		return false, nil
+	}
+
+	// 只有属于该租户且不是公共数据的记录才能修改/删除
+	return basic.TenantID == tenantID && !basic.IsCommon, nil
 }

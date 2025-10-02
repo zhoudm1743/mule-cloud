@@ -8,6 +8,8 @@ namespace Api {
       token: string
       /** 用户ID */
       user_id: string
+      /** 租户ID */
+      tenant_id?: string
       /** 手机号 */
       phone: string
       /** 昵称 */
@@ -16,6 +18,8 @@ namespace Api {
       avatar: string
       /** 用户角色 */
       role: string[]
+      /** 菜单权限映射：{"admin": ["read", "create"], "finance": ["read", "pending"]} */
+      menu_permissions?: Record<string, string[]>
       /** Token过期时间戳 */
       expires_at: number
     }
@@ -45,11 +49,13 @@ namespace Api {
     /* 个人资料 */
     interface Profile {
       user_id: string
+      tenant_id?: string
       phone: string
       nickname: string
       avatar: string
       email: string
       role: string[]
+      menu_permissions?: Record<string, string[]>
       status: number
       created_at: number
       updated_at: number

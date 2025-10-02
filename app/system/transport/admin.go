@@ -78,6 +78,13 @@ func CreateAdminHandler(svc services.IAdminService) gin.HandlerFunc {
 			return
 		}
 
+		// 租户权限检查
+		perm := NewPermissionChecker(c)
+		if err := perm.CheckTenantPermission(req.TenantID, "创建"); err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
 		ep := endpoint.CreateAdminEndpoint(svc)
 		resp, err := ep(c.Request.Context(), req)
 		if err != nil {
@@ -102,6 +109,26 @@ func UpdateAdminHandler(svc services.IAdminService) gin.HandlerFunc {
 			return
 		}
 
+		// 租户权限检查：先查询目标管理员
+		perm := NewPermissionChecker(c)
+		targetAdmin, err := svc.Get(req.ID)
+		if err != nil {
+			response.Error(c, "管理员不存在")
+			return
+		}
+		if err := perm.CheckTenantPermission(targetAdmin.TenantID, "修改"); err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		// 如果尝试修改租户ID，需要检查新租户的权限
+		if req.TenantID != nil && *req.TenantID != targetAdmin.TenantID {
+			if err := perm.CheckTenantPermission(*req.TenantID, "分配到"); err != nil {
+				response.Error(c, err.Error())
+				return
+			}
+		}
+
 		ep := endpoint.UpdateAdminEndpoint(svc)
 		resp, err := ep(c.Request.Context(), req)
 		if err != nil {
@@ -122,6 +149,18 @@ func DeleteAdminHandler(svc services.IAdminService) gin.HandlerFunc {
 			return
 		}
 
+		// 租户权限检查：先查询目标管理员
+		perm := NewPermissionChecker(c)
+		targetAdmin, err := svc.Get(req.ID)
+		if err != nil {
+			response.Error(c, "管理员不存在")
+			return
+		}
+		if err := perm.CheckTenantPermission(targetAdmin.TenantID, "删除"); err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
 		ep := endpoint.DeleteAdminEndpoint(svc)
 		resp, err := ep(c.Request.Context(), req)
 		if err != nil {
@@ -133,3 +172,60 @@ func DeleteAdminHandler(svc services.IAdminService) gin.HandlerFunc {
 	}
 }
 
+// AssignAdminRolesHandler 分配角色给管理员
+func AssignAdminRolesHandler(adminSvc *services.AdminService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		adminID := c.Param("id")
+
+		var req dto.AssignRolesRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		// TODO: 从上下文获取操作人（待集成JWT后）
+		updatedBy := "system"
+
+		err := adminSvc.AssignRoles(c.Request.Context(), adminID, req.Roles, updatedBy)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.SuccessWithMsg(c, "分配角色成功", nil)
+	}
+}
+
+// GetAdminRolesHandler 获取管理员的角色
+func GetAdminRolesHandler(adminSvc *services.AdminService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		adminID := c.Param("id")
+
+		roles, err := adminSvc.GetAdminRoles(c.Request.Context(), adminID)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, roles)
+	}
+}
+
+// RemoveAdminRoleHandler 移除管理员的某个角色
+func RemoveAdminRoleHandler(adminSvc *services.AdminService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		adminID := c.Param("id")
+		roleID := c.Param("roleId")
+
+		// TODO: 从上下文获取操作人（待集成JWT后）
+		updatedBy := "system"
+
+		err := adminSvc.RemoveRole(c.Request.Context(), adminID, roleID, updatedBy)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.SuccessWithMsg(c, "移除角色成功", nil)
+	}
+}

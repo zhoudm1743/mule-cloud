@@ -50,9 +50,6 @@ func (s *TenantService) List(req dto.TenantListRequest) ([]models.Tenant, int64,
 	if req.Name != "" {
 		filter["name"] = req.Name
 	}
-	if req.Value != "" {
-		filter["value"] = req.Value
-	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
 	}
@@ -99,9 +96,6 @@ func (s *TenantService) GetAll(req dto.TenantListRequest) ([]models.Tenant, erro
 	if req.Name != "" {
 		filter["name"] = req.Name
 	}
-	if req.Value != "" {
-		filter["value"] = req.Value
-	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
 	}
@@ -132,11 +126,19 @@ func (s *TenantService) Create(req dto.TenantCreateRequest) (*models.Tenant, err
 	tenant := &models.Tenant{
 		Code:      req.Code,
 		Name:      req.Name,
-		Value:     req.Value,
-		Remark:    req.Remark,
+		Contact:   req.Contact,
+		Phone:     req.Phone,
+		Email:     req.Email,
+		Menus:     []string{}, // 初始化为空菜单数组
+		Status:    req.Status,
 		IsDeleted: 0, // 初始化为未删除
 		CreatedAt: now,
 		UpdatedAt: now,
+	}
+
+	// 如果未指定状态，默认为启用
+	if tenant.Status == 0 {
+		tenant.Status = 1
 	}
 
 	err := s.repo.Create(ctx, tenant)
@@ -161,11 +163,17 @@ func (s *TenantService) Update(req dto.TenantUpdateRequest) (*models.Tenant, err
 	if req.Name != "" {
 		update["name"] = req.Name
 	}
-	if req.Value != "" {
-		update["value"] = req.Value
+	if req.Contact != "" {
+		update["contact"] = req.Contact
 	}
-	if req.Remark != "" {
-		update["remark"] = req.Remark
+	if req.Phone != "" {
+		update["phone"] = req.Phone
+	}
+	if req.Email != "" {
+		update["email"] = req.Email
+	}
+	if req.Status != nil {
+		update["status"] = *req.Status
 	}
 
 	err := s.repo.Update(ctx, req.ID, update)
@@ -181,4 +189,58 @@ func (s *TenantService) Update(req dto.TenantUpdateRequest) (*models.Tenant, err
 func (s *TenantService) Delete(id string) error {
 	ctx := context.Background()
 	return s.repo.Delete(ctx, id)
+}
+
+// AssignMenus 分配菜单权限给租户（超管使用）
+func (s *TenantService) AssignMenus(ctx context.Context, tenantID string, menuIDs []string, updatedBy string) error {
+	// 检查租户是否存在
+	tenant, err := s.repo.Get(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	if tenant == nil {
+		return repository.ErrNotFound
+	}
+
+	// 更新菜单权限到数据库
+	update := bson.M{
+		"menus":      menuIDs,
+		"updated_by": updatedBy,
+		"updated_at": time.Now().Unix(),
+	}
+
+	err = s.repo.Update(ctx, tenantID, update)
+	if err != nil {
+		return err
+	}
+
+	// TODO: 同步到 Casbin（可选，需要先获取菜单路径）
+	// 这里可以集成 MenuRepository 来获取菜单路径
+	// menuPaths := []string{}
+	// for _, menuID := range menuIDs {
+	//     menu, _ := menuRepo.GetByID(ctx, menuID)
+	//     if menu != nil {
+	//         menuPaths = append(menuPaths, menu.Path)
+	//     }
+	// }
+	// casbinPkg.SyncTenantMenus(tenantID, menuPaths)
+
+	return nil
+}
+
+// GetTenantMenus 获取租户的菜单权限
+func (s *TenantService) GetTenantMenus(ctx context.Context, tenantID string) ([]string, error) {
+	tenant, err := s.repo.Get(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if tenant == nil {
+		return nil, repository.ErrNotFound
+	}
+
+	if tenant.Menus == nil {
+		return []string{}, nil
+	}
+
+	return tenant.Menus, nil
 }

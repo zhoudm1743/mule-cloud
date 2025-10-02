@@ -1,10 +1,10 @@
 <script setup lang="tsx">
 import type { DataTableColumns } from 'naive-ui'
+import CopyText from '@/components/custom/CopyText.vue'
 import { useBoolean } from '@/hooks'
 import { batchDeleteMenus, deleteMenu, fetchAllMenus } from '@/service'
 import { arrayToTree, createIcon } from '@/utils'
 import { NButton, NPopconfirm, NSpace, NTag } from 'naive-ui'
-import { renderProCopyableText } from 'pro-naive-ui'
 import TableModal from './components/TableModal.vue'
 
 const { bool: loading, setTrue: startLoading, setFalse: endLoading } = useBoolean(false)
@@ -54,7 +54,7 @@ const columns: DataTableColumns<Api.Menu.MenuItem> = [
   {
     title: '路径',
     key: 'path',
-    render: row => renderProCopyableText(row.path),
+    render: row => <CopyText value={row.path} />,
   },
   {
     title: '组件路径',
@@ -95,13 +95,15 @@ const columns: DataTableColumns<Api.Menu.MenuItem> = [
       return (
         <NSpace justify="center">
           <NButton
-            size="small"
+            text
+            type="primary"
             onClick={() => tableModalRef.value.openModal('view', row)}
           >
             查看
           </NButton>
           <NButton
-            size="small"
+            text
+            type="primary"
             onClick={() => tableModalRef.value.openModal('edit', row)}
           >
             编辑
@@ -109,7 +111,7 @@ const columns: DataTableColumns<Api.Menu.MenuItem> = [
           <NPopconfirm onPositiveClick={() => deleteData(row.id)}>
             {{
               default: () => '确认删除',
-              trigger: () => <NButton size="small" type="error">删除</NButton>,
+              trigger: () => <NButton text type="error">删除</NButton>,
             }}
           </NPopconfirm>
         </NSpace>

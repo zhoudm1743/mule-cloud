@@ -29,8 +29,13 @@ export function fetchUpdateToken(data: { token: string }) {
   return method
 }
 
-export function fetchUserRoutes(params: { id: number }) {
-  return request.Get<Service.ResponseResult<AppRoute.RowRoute[]>>('/auth/getUserRoutes', { params })
+// 获取用户路由返回结构
+interface GetUserRoutesResponse {
+  routes: AppRoute.RowRoute[]
+}
+
+export function fetchUserRoutes(params?: { id?: string }) {
+  return request.Get<Service.ResponseResult<GetUserRoutesResponse>>('/auth/getUserRoutes', { params })
 }
 
 export function fetchUserProfile() {

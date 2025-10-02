@@ -93,6 +93,7 @@ func main() {
 		protected.GET("/profile", transport.GetProfileHandler(authSvc))
 		protected.PUT("/profile", transport.UpdateProfileHandler(authSvc))
 		protected.POST("/password", transport.ChangePasswordHandler(authSvc))
+		protected.GET("/getUserRoutes", transport.GetUserRoutesHandler(authSvc)) // 获取用户路由
 	}
 
 	// 健康检查（不需要认证）

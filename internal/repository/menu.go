@@ -24,6 +24,15 @@ func NewMenuRepository() *MenuRepository {
 
 // Create 创建菜单
 func (r *MenuRepository) Create(ctx context.Context, menu *models.Menu) error {
+	// 检查 name 唯一性（排除已软删除的）
+	existing, err := r.GetByName(ctx, menu.Name)
+	if err != nil {
+		return fmt.Errorf("检查菜单名称失败: %w", err)
+	}
+	if existing != nil {
+		return fmt.Errorf("菜单名称 '%s' 已存在", menu.Name)
+	}
+
 	menu.CreatedAt = time.Now().Unix()
 	menu.UpdatedAt = time.Now().Unix()
 	menu.Status = 1
@@ -154,6 +163,18 @@ func (r *MenuRepository) Update(ctx context.Context, id string, updates map[stri
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		return fmt.Errorf("无效的ID格式: %w", err)
+	}
+
+	// 如果更新了 name 字段，检查唯一性（排除当前记录和已软删除的）
+	if newName, ok := updates["name"].(string); ok && newName != "" {
+		existing, err := r.GetByName(ctx, newName)
+		if err != nil {
+			return fmt.Errorf("检查菜单名称失败: %w", err)
+		}
+		// 如果找到同名菜单且不是当前记录，报错
+		if existing != nil && existing.ID != id {
+			return fmt.Errorf("菜单名称 '%s' 已存在", newName)
+		}
 	}
 
 	updates["updated_at"] = time.Now().Unix()

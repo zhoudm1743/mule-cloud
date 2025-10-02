@@ -69,3 +69,15 @@ func MakeChangePasswordEndpoint(svc services.IAuthService) endpoint.Endpoint {
 		return svc.ChangePassword(req.UserID, req.Data)
 	}
 }
+
+// GetUserRoutesEndpoint 获取用户路由端点
+type GetUserRoutesRequest struct {
+	UserID string `json:"user_id"`
+}
+
+func MakeGetUserRoutesEndpoint(svc services.IAuthService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(GetUserRoutesRequest)
+		return svc.GetUserRoutes(req.UserID)
+	}
+}

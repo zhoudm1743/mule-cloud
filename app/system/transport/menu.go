@@ -46,23 +46,24 @@ func CreateMenuHandler(menuSvc *services.MenuService) gin.HandlerFunc {
 		}
 
 		menu := &models.Menu{
-			PID:           req.PID,
-			Name:          req.Name,
-			Path:          req.Path,
-			Title:         req.Title,
-			ComponentPath: req.ComponentPath,
-			Redirect:      req.Redirect,
-			Icon:          req.Icon,
-			RequiresAuth:  req.RequiresAuth,
-			Roles:         req.Roles,
-			KeepAlive:     req.KeepAlive,
-			Hide:          req.Hide,
-			Order:         req.Order,
-			Href:          req.Href,
-			ActiveMenu:    req.ActiveMenu,
-			WithoutTab:    req.WithoutTab,
-			PinTab:        req.PinTab,
-			MenuType:      req.MenuType,
+			PID:                  req.PID,
+			Name:                 req.Name,
+			Path:                 req.Path,
+			Title:                req.Title,
+			ComponentPath:        req.ComponentPath,
+			Redirect:             req.Redirect,
+			Icon:                 req.Icon,
+			RequiresAuth:         req.RequiresAuth,
+			Roles:                req.Roles,
+			KeepAlive:            req.KeepAlive,
+			Hide:                 req.Hide,
+			Order:                req.Order,
+			Href:                 req.Href,
+			ActiveMenu:           req.ActiveMenu,
+			WithoutTab:           req.WithoutTab,
+			PinTab:               req.PinTab,
+			MenuType:             req.MenuType,
+			AvailablePermissions: req.AvailablePermissions,
 		}
 
 		err := menuSvc.Create(c.Request.Context(), menu)
@@ -138,6 +139,9 @@ func UpdateMenuHandler(menuSvc *services.MenuService) gin.HandlerFunc {
 		}
 		if req.MenuType != "" {
 			updates["menuType"] = req.MenuType
+		}
+		if req.AvailablePermissions != nil {
+			updates["available_permissions"] = req.AvailablePermissions
 		}
 
 		err := menuSvc.Update(c.Request.Context(), id, updates)

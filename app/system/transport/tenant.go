@@ -133,3 +133,41 @@ func DeleteTenantHandler(svc services.ITenantService) gin.HandlerFunc {
 	}
 }
 
+// AssignTenantMenusHandler 分配菜单权限给租户（超管使用）
+func AssignTenantMenusHandler(tenantSvc *services.TenantService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tenantID := c.Param("id")
+
+		var req dto.AssignTenantMenusRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		// TODO: 从上下文获取操作人（待集成JWT后）
+		updatedBy := "system"
+
+		err := tenantSvc.AssignMenus(c.Request.Context(), tenantID, req.Menus, updatedBy)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.SuccessWithMsg(c, "分配菜单权限成功", nil)
+	}
+}
+
+// GetTenantMenusHandler 获取租户的菜单权限
+func GetTenantMenusHandler(tenantSvc *services.TenantService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tenantID := c.Param("id")
+
+		menus, err := tenantSvc.GetTenantMenus(c.Request.Context(), tenantID)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, menus)
+	}
+}

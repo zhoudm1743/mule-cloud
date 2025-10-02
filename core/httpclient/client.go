@@ -12,10 +12,24 @@ import (
 	"github.com/hashicorp/consul/api"
 )
 
+// Context keys for passing authentication info
+type contextKey string
+
+const (
+	// ContextKeyToken JWT token key in context
+	ContextKeyToken contextKey = "jwt_token"
+	// ContextKeyUserID User ID key in context
+	ContextKeyUserID contextKey = "user_id"
+	// ContextKeyTenantID Tenant ID key in context
+	ContextKeyTenantID contextKey = "tenant_id"
+)
+
 // ServiceClient HTTP服务客户端（用于服务间调用）
 type ServiceClient struct {
 	consulClient *api.Client
 	httpClient   *http.Client
+	// defaultToken 默认的服务间调用 token（可选）
+	defaultToken string
 }
 
 // NewServiceClient 创建服务客户端
@@ -34,6 +48,34 @@ func NewServiceClient(consulAddr string) (*ServiceClient, error) {
 			Timeout: 10 * time.Second,
 		},
 	}, nil
+}
+
+// SetDefaultToken 设置默认的服务间调用 token
+func (c *ServiceClient) SetDefaultToken(token string) {
+	c.defaultToken = token
+}
+
+// WithToken 将 JWT token 添加到 context 中
+func WithToken(ctx context.Context, token string) context.Context {
+	return context.WithValue(ctx, ContextKeyToken, token)
+}
+
+// WithUserID 将用户 ID 添加到 context 中
+func WithUserID(ctx context.Context, userID string) context.Context {
+	return context.WithValue(ctx, ContextKeyUserID, userID)
+}
+
+// WithTenantID 将租户 ID 添加到 context 中
+func WithTenantID(ctx context.Context, tenantID string) context.Context {
+	return context.WithValue(ctx, ContextKeyTenantID, tenantID)
+}
+
+// GetTokenFromContext 从 context 中获取 token
+func GetTokenFromContext(ctx context.Context) string {
+	if token, ok := ctx.Value(ContextKeyToken).(string); ok {
+		return token
+	}
+	return ""
 }
 
 // GetServiceAddress 从Consul获取服务地址
@@ -101,6 +143,26 @@ func (c *ServiceClient) doRequest(ctx context.Context, method, serviceName, path
 
 	// 5. 设置Header
 	req.Header.Set("Content-Type", "application/json")
+
+	// 5.1 自动添加认证信息
+	// 优先级：context 中的 token > 手动传递的 headers > 默认 token
+	token := GetTokenFromContext(ctx)
+	if token == "" && c.defaultToken != "" {
+		token = c.defaultToken
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+
+	// 5.2 传递用户信息（用于审计和权限检查）
+	if userID, ok := ctx.Value(ContextKeyUserID).(string); ok && userID != "" {
+		req.Header.Set("X-User-ID", userID)
+	}
+	if tenantID, ok := ctx.Value(ContextKeyTenantID).(string); ok && tenantID != "" {
+		req.Header.Set("X-Tenant-ID", tenantID)
+	}
+
+	// 5.3 设置自定义 headers（可以覆盖默认值）
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}

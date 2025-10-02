@@ -12,7 +12,7 @@ type Menu struct {
 	Redirect      string   `bson:"redirect,omitempty" json:"redirect,omitempty"`     // 重定向
 	Icon          string   `bson:"icon,omitempty" json:"icon,omitempty"`             // 图标
 	RequiresAuth  bool     `bson:"requiresAuth" json:"requiresAuth"`                 // 是否需要认证
-	Roles         []string `bson:"roles,omitempty" json:"roles,omitempty"`           // 角色权限
+	Roles         []string `bson:"roles,omitempty" json:"roles,omitempty"`           // 角色权限（系统级硬限制，一般不使用）
 	KeepAlive     bool     `bson:"keepAlive,omitempty" json:"keepAlive,omitempty"`   // 页面缓存
 	Hide          bool     `bson:"hide,omitempty" json:"hide,omitempty"`             // 是否隐藏
 	Order         int      `bson:"order,omitempty" json:"order,omitempty"`           // 排序
@@ -22,6 +22,9 @@ type Menu struct {
 	PinTab        bool     `bson:"pinTab,omitempty" json:"pinTab,omitempty"`         // 固定Tab
 	MenuType      string   `bson:"menuType" json:"menuType"`                         // 菜单类型: dir/page
 
+	// ========== 权限控制字段 ==========
+	AvailablePermissions []Permission `bson:"available_permissions,omitempty" json:"available_permissions,omitempty"` // 该菜单/资源支持的权限列表
+
 	// ========== 通用字段 ==========
 	Status    int    `json:"status" bson:"status"`         // 状态: 1-启用 0-禁用
 	IsDeleted int    `json:"is_deleted" bson:"is_deleted"` // 是否删除: 0-否 1-是
@@ -30,6 +33,14 @@ type Menu struct {
 	CreatedAt int64  `json:"created_at" bson:"created_at"` // 创建时间
 	UpdatedAt int64  `json:"updated_at" bson:"updated_at"` // 更新时间
 	DeletedAt int64  `json:"deleted_at" bson:"deleted_at"` // 删除时间
+}
+
+// Permission 权限定义
+type Permission struct {
+	Action      string `json:"action" bson:"action"`                     // 权限动作: read, create, update, delete, pending, verify...
+	Label       string `json:"label" bson:"label"`                       // 显示名称
+	Description string `json:"description,omitempty" bson:"description"` // 描述
+	IsBasic     bool   `json:"is_basic" bson:"is_basic"`                 // 是否基础权限（CRUD）
 }
 
 // TableName 集合名称

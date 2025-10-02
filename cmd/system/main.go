@@ -59,6 +59,7 @@ func main() {
 	tenantSvc := services.NewTenantService()
 	adminSvc := services.NewAdminService()
 	menuSvc := services.NewMenuService()
+	roleSvc := services.NewRoleService()
 
 	// 初始化路由
 	gin.SetMode(cfg.Server.Mode)
@@ -75,23 +76,28 @@ func main() {
 		// 租户路由
 		tenant := system.Group("/tenants")
 		{
-			tenant.GET("/:id", transport.GetTenantHandler(tenantSvc))       // 获取单个租户
-			tenant.GET("", transport.ListTenantsHandler(tenantSvc))         // 分页列表
-			tenant.GET("/all", transport.GetAllTenantsHandler(tenantSvc))   // 获取所有（不分页）
-			tenant.POST("", transport.CreateTenantHandler(tenantSvc))       // 创建租户
-			tenant.PUT("/:id", transport.UpdateTenantHandler(tenantSvc))    // 更新租户
-			tenant.DELETE("/:id", transport.DeleteTenantHandler(tenantSvc)) // 删除租户
+			tenant.GET("/:id", transport.GetTenantHandler(tenantSvc))                                          // 获取单个租户
+			tenant.GET("", transport.ListTenantsHandler(tenantSvc))                                            // 分页列表
+			tenant.GET("/all", transport.GetAllTenantsHandler(tenantSvc))                                      // 获取所有（不分页）
+			tenant.POST("", transport.CreateTenantHandler(tenantSvc))                                          // 创建租户
+			tenant.PUT("/:id", transport.UpdateTenantHandler(tenantSvc))                                       // 更新租户
+			tenant.DELETE("/:id", transport.DeleteTenantHandler(tenantSvc))                                    // 删除租户
+			tenant.POST("/:id/menus", transport.AssignTenantMenusHandler(tenantSvc.(*services.TenantService))) // 分配菜单权限（超管）
+			tenant.GET("/:id/menus", transport.GetTenantMenusHandler(tenantSvc.(*services.TenantService)))     // 获取租户菜单权限
 		}
 
 		// 管理员路由
 		admin := system.Group("/admins")
 		{
-			admin.GET("/:id", transport.GetAdminHandler(adminSvc))       // 获取单个管理员
-			admin.GET("", transport.ListAdminsHandler(adminSvc))         // 分页列表
-			admin.GET("/all", transport.GetAllAdminsHandler(adminSvc))   // 获取所有（不分页）
-			admin.POST("", transport.CreateAdminHandler(adminSvc))       // 创建管理员
-			admin.PUT("/:id", transport.UpdateAdminHandler(adminSvc))    // 更新管理员
-			admin.DELETE("/:id", transport.DeleteAdminHandler(adminSvc)) // 删除管理员
+			admin.GET("/:id", transport.GetAdminHandler(adminSvc))                                                  // 获取单个管理员
+			admin.GET("", transport.ListAdminsHandler(adminSvc))                                                    // 分页列表
+			admin.GET("/all", transport.GetAllAdminsHandler(adminSvc))                                              // 获取所有（不分页）
+			admin.POST("", transport.CreateAdminHandler(adminSvc))                                                  // 创建管理员
+			admin.PUT("/:id", transport.UpdateAdminHandler(adminSvc))                                               // 更新管理员
+			admin.DELETE("/:id", transport.DeleteAdminHandler(adminSvc))                                            // 删除管理员
+			admin.POST("/:id/roles", transport.AssignAdminRolesHandler(adminSvc.(*services.AdminService)))          // 分配角色
+			admin.GET("/:id/roles", transport.GetAdminRolesHandler(adminSvc.(*services.AdminService)))              // 获取管理员角色
+			admin.DELETE("/:id/roles/:roleId", transport.RemoveAdminRoleHandler(adminSvc.(*services.AdminService))) // 移除角色
 		}
 
 		// 菜单路由（Nova-admin前端路由数据）
@@ -104,6 +110,20 @@ func main() {
 			menu.POST("/batch-delete", transport.BatchDeleteMenusHandler(menuSvc)) // 批量删除
 			menu.PUT("/:id", transport.UpdateMenuHandler(menuSvc))                 // 更新菜单
 			menu.DELETE("/:id", transport.DeleteMenuHandler(menuSvc))              // 删除菜单
+		}
+
+		// 角色路由
+		role := system.Group("/roles")
+		{
+			role.GET("/:id", transport.GetRoleHandler(roleSvc))                    // 获取单个角色
+			role.GET("", transport.ListRolesHandler(roleSvc))                      // 分页列表
+			role.GET("/tenant", transport.GetTenantRolesHandler(roleSvc))          // 获取租户下的所有角色
+			role.POST("", transport.CreateRoleHandler(roleSvc))                    // 创建角色
+			role.PUT("/:id", transport.UpdateRoleHandler(roleSvc))                 // 更新角色
+			role.DELETE("/:id", transport.DeleteRoleHandler(roleSvc))              // 删除角色
+			role.POST("/batch-delete", transport.BatchDeleteRolesHandler(roleSvc)) // 批量删除
+			role.POST("/:id/menus", transport.AssignMenusHandler(roleSvc))         // 分配菜单权限
+			role.GET("/:id/menus", transport.GetRoleMenusHandler(roleSvc))         // 获取角色的菜单权限
 		}
 	}
 
@@ -141,7 +161,7 @@ func main() {
 			Prefix:        "/system", // 微服务路径
 			GatewayPrefix: "/admin",  // 网关前缀（后台接口必须通过 /admin 访问）
 			ServiceName:   cfg.Consul.ServiceName,
-			RequireAuth:   false,      // 需要认证
+			RequireAuth:   true,       // 需要认证
 			RequireRole:   []string{}, // 需要 admin 角色
 		}
 

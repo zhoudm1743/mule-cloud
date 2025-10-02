@@ -175,7 +175,7 @@ func main() {
 			Prefix:        "/basic", // 微服务路径
 			GatewayPrefix: "/admin", // 网关前缀（后台接口必须通过 /admin 访问）
 			ServiceName:   cfg.Consul.ServiceName,
-			RequireAuth:   false,      // 需要认证
+			RequireAuth:   true,       // 需要认证
 			RequireRole:   []string{}, // 需要 admin 角色
 		}
 

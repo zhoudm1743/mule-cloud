@@ -9,10 +9,10 @@ export function fetchAllRoutes() {
 export function fetchUserPage() {
   return request.Get<Service.ResponseResult<Entity.User[]>>('/userPage')
 }
-// 获取所有角色列表
-export function fetchRoleList() {
-  return request.Get<Service.ResponseResult<Entity.Role[]>>('/role/list')
-}
+// 获取所有角色列表（已废弃，使用 role.ts 中的 fetchRoleList）
+// export function fetchRoleList() {
+//   return request.Get<Service.ResponseResult<Entity.Role[]>>('/role/list')
+// }
 
 /**
  * 请求获取字典列表

@@ -149,3 +149,31 @@ func ChangePasswordHandler(svc services.IAuthService) gin.HandlerFunc {
 		response.Success(c, resp)
 	}
 }
+
+// GetUserRoutesHandler 获取用户路由处理器
+func GetUserRoutesHandler(svc services.IAuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// 从 query 参数或 JWT 中间件获取用户ID
+		userID := c.Query("id")
+		if userID == "" {
+			// 如果没有传 id，从 JWT 获取
+			if id, exists := c.Get("user_id"); exists {
+				userID = id.(string)
+			} else {
+				response.ErrorWithCode(c, 401, "未认证")
+				return
+			}
+		}
+
+		ep := endpoint.MakeGetUserRoutesEndpoint(svc)
+		resp, err := ep(c.Request.Context(), endpoint.GetUserRoutesRequest{
+			UserID: userID,
+		})
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}

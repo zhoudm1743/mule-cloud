@@ -40,6 +40,7 @@ func JWTAuth(jwtManager *jwt.JWTManager) gin.HandlerFunc {
 		// 将用户信息存入Context
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
+		c.Set("tenant_id", claims.TenantID)
 		c.Set("roles", claims.Roles)
 		c.Set("claims", claims)
 
@@ -83,6 +84,7 @@ func OptionalAuth(jwtManager *jwt.JWTManager) gin.HandlerFunc {
 			if err == nil {
 				c.Set("user_id", claims.UserID)
 				c.Set("username", claims.Username)
+				c.Set("tenant_id", claims.TenantID)
 				c.Set("roles", claims.Roles)
 				c.Set("claims", claims)
 			}
