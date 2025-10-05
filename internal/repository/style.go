@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
-	"mule-cloud/core/database"
 	tenantCtx "mule-cloud/core/context"
+	"mule-cloud/core/database"
 	"mule-cloud/internal/models"
 	"time"
 
@@ -43,7 +43,7 @@ func (r *styleRepository) GetCollectionWithContext(ctx context.Context) *mongo.C
 // Get 获取款式
 func (r *styleRepository) Get(ctx context.Context, id string) (*models.Style, error) {
 	collection := r.GetCollectionWithContext(ctx)
-	
+
 	var style models.Style
 	err := collection.FindOne(ctx, bson.M{"_id": id, "is_deleted": 0}).Decode(&style)
 	if err != nil {
@@ -52,14 +52,14 @@ func (r *styleRepository) Get(ctx context.Context, id string) (*models.Style, er
 		}
 		return nil, err
 	}
-	
+
 	return &style, nil
 }
 
 // GetByStyleNo 根据款式编号获取款式
 func (r *styleRepository) GetByStyleNo(ctx context.Context, styleNo string) (*models.Style, error) {
 	collection := r.GetCollectionWithContext(ctx)
-	
+
 	var style models.Style
 	err := collection.FindOne(ctx, bson.M{"style_no": styleNo, "is_deleted": 0}).Decode(&style)
 	if err != nil {
@@ -68,19 +68,19 @@ func (r *styleRepository) GetByStyleNo(ctx context.Context, styleNo string) (*mo
 		}
 		return nil, err
 	}
-	
+
 	return &style, nil
 }
 
 // Create 创建款式
 func (r *styleRepository) Create(ctx context.Context, style *models.Style) error {
 	collection := r.GetCollectionWithContext(ctx)
-	
+
 	result, err := collection.InsertOne(ctx, style)
 	if err != nil {
 		return err
 	}
-	
+
 	style.ID = result.InsertedID.(string)
 	return nil
 }
@@ -88,27 +88,27 @@ func (r *styleRepository) Create(ctx context.Context, style *models.Style) error
 // Update 更新款式
 func (r *styleRepository) Update(ctx context.Context, id string, update bson.M) error {
 	collection := r.GetCollectionWithContext(ctx)
-	
+
 	_, err := collection.UpdateOne(
 		ctx,
 		bson.M{"_id": id, "is_deleted": 0},
 		bson.M{"$set": update},
 	)
-	
+
 	return err
 }
 
 // Delete 删除款式（软删除）
 func (r *styleRepository) Delete(ctx context.Context, id string) error {
 	collection := r.GetCollectionWithContext(ctx)
-	
+
 	now := time.Now().Unix()
 	_, err := collection.UpdateOne(
 		ctx,
 		bson.M{"_id": id},
 		bson.M{"$set": bson.M{"is_deleted": 1, "deleted_at": now}},
 	)
-	
+
 	return err
 }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, h, reactive, ref } from 'vue'
-import { NCheckbox, NInput, NInputNumber, NSelect } from 'naive-ui'
+import { NButton, NCheckbox, NInput, NInputNumber, NSelect, NSpace } from 'naive-ui'
 import { createOrder, updateOrder, updateOrderProcedure, updateOrderStyle } from '@/service/api/order'
 import { fetchAllStyles } from '@/service/api/order'
 import { fetchAllColors, fetchAllCustomers, fetchAllOrderTypes, fetchAllProcedures, fetchAllSalesmans, fetchAllSizes } from '@/service/api/basic'
@@ -146,6 +146,17 @@ async function handleStep1() {
 }
 
 // 当选择客户时，自动填充客户名称
+// 生成合同号
+function generateContractNo() {
+  // 生成规则：日期 + 4位随机数
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  const random = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+  formModel.contract_no = `${year}${month}${day}${random}`
+}
+
 function onCustomerChange(customerId: string) {
   const customer = customerOptions.value.find(c => c.value === customerId)
   if (customer) {
@@ -226,7 +237,7 @@ async function handleStep2() {
     return
   }
 
-  // 计算总数量
+  // 计算总数量和总金额
   const totalQuantity = formModel.items.reduce((sum, item) => sum + item.quantity, 0)
   formModel.quantity = totalQuantity
 
@@ -326,6 +337,14 @@ async function handleEditSubmit() {
   }
 }
 
+// 计算总金额
+function calculateTotalAmount() {
+  if (formModel.unit_price > 0 && formModel.quantity > 0) {
+    return formModel.unit_price * formModel.quantity
+  }
+  return 0
+}
+
 // 订单明细表格列定义
 const itemColumns = computed(() => [
   { title: '颜色', key: 'color' },
@@ -341,13 +360,18 @@ const itemColumns = computed(() => [
         class: 'w-full',
         'onUpdate:value': (value: number | null) => {
           formModel.items[index].quantity = value || 0
-          // 自动计算总数量
+          // 自动计算总数量和总金额
           formModel.quantity = formModel.items.reduce((sum, item) => sum + item.quantity, 0)
         },
       })
     },
   },
 ])
+
+// 计算工序总工价
+const totalProcedurePrice = computed(() => {
+  return formModel.procedures.reduce((sum, proc) => sum + (proc.unit_price || 0), 0)
+})
 
 // 工序表格列定义
 const procedureColumns = computed(() => [
@@ -445,19 +469,25 @@ defineExpose({ openModal })
       <!-- 步骤1：基础信息 -->
       <div v-show="modalType !== 'add' || currentStep === 0">
         <NGrid :cols="2" :x-gap="18">
-          <NFormItemGridItem path="contract_no" label="合同号" :span="2">
-            <NInput v-model:value="formModel.contract_no" :disabled="modalType === 'view'" placeholder="请输入合同号" />
-          </NFormItemGridItem>
-          <NFormItemGridItem path="customer_id" label="客户" :span="2">
-            <NSelect
-              v-model:value="formModel.customer_id"
-              :disabled="modalType === 'view'"
-              :options="customerOptions"
-              placeholder="请选择客户"
-              filterable
-              @update:value="onCustomerChange"
-            />
-          </NFormItemGridItem>
+            <NFormItemGridItem path="contract_no" label="合同号" :span="2">
+              <NSpace class="w-full">
+                <NInput v-model:value="formModel.contract_no" :disabled="modalType === 'view'" placeholder="请输入合同号" class="flex-1" />
+                <NButton v-if="modalType !== 'view'" @click="generateContractNo">
+                  生成
+                </NButton>
+              </NSpace>
+            </NFormItemGridItem>
+            <NFormItemGridItem path="customer_id" label="客户" :span="2">
+              <NSelect
+                v-model:value="formModel.customer_id"
+                :disabled="modalType === 'view'"
+                :options="customerOptions"
+                placeholder="请选择客户，可直接输入新客户"
+                filterable
+                tag
+                @update:value="onCustomerChange"
+              />
+            </NFormItemGridItem>
           <NFormItemGridItem path="delivery_date" label="交货日期">
             <NDatePicker
               v-model:formatted-value="formModel.delivery_date"
@@ -468,24 +498,28 @@ defineExpose({ openModal })
               class="w-full"
             />
           </NFormItemGridItem>
-          <NFormItemGridItem path="order_type_id" label="订单类型">
-            <NSelect
-              v-model:value="formModel.order_type_id"
-              :disabled="modalType === 'view'"
-              :options="orderTypeOptions"
-              placeholder="请选择订单类型"
-              clearable
-            />
-          </NFormItemGridItem>
-          <NFormItemGridItem path="salesman_id" label="业务员" :span="2">
-            <NSelect
-              v-model:value="formModel.salesman_id"
-              :disabled="modalType === 'view'"
-              :options="salesmanOptions"
-              placeholder="请选择业务员"
-              clearable
-            />
-          </NFormItemGridItem>
+            <NFormItemGridItem path="order_type_id" label="订单类型">
+              <NSelect
+                v-model:value="formModel.order_type_id"
+                :disabled="modalType === 'view'"
+                :options="orderTypeOptions"
+                placeholder="请选择订单类型，可直接输入新类型"
+                filterable
+                tag
+                clearable
+              />
+            </NFormItemGridItem>
+            <NFormItemGridItem path="salesman_id" label="业务员" :span="2">
+              <NSelect
+                v-model:value="formModel.salesman_id"
+                :disabled="modalType === 'view'"
+                :options="salesmanOptions"
+                placeholder="请选择业务员，可直接输入新业务员"
+                filterable
+                tag
+                clearable
+              />
+            </NFormItemGridItem>
           <NFormItemGridItem path="remark" label="备注" :span="2">
             <NInput
               v-model:value="formModel.remark"
@@ -536,10 +570,17 @@ defineExpose({ openModal })
             />
           </NFormItemGridItem>
           <NFormItemGridItem path="unit_price" label="单价">
-            <NInputNumber v-model:value="formModel.unit_price" :disabled="modalType === 'view'" placeholder="单价" class="w-full" :precision="2" />
+            <NInputNumber v-model:value="formModel.unit_price" :disabled="modalType === 'view'" placeholder="单价" class="w-full" :precision="2" :min="0" />
           </NFormItemGridItem>
           <NFormItemGridItem path="quantity" label="总数量">
             <NInputNumber v-model:value="formModel.quantity" disabled placeholder="总数量" class="w-full" />
+          </NFormItemGridItem>
+          <NFormItemGridItem path="total_amount" label="总金额" :span="2">
+            <NInputNumber :value="calculateTotalAmount()" disabled placeholder="总金额" class="w-full" :precision="2">
+              <template #suffix>
+                <span class="text-gray-400">元</span>
+              </template>
+            </NInputNumber>
           </NFormItemGridItem>
         </NGrid>
 
@@ -563,6 +604,11 @@ defineExpose({ openModal })
           size="small"
           max-height="300px"
         />
+        <div v-if="formModel.procedures.length > 0" class="mt-2 text-right">
+          <span class="text-gray-600">工序总工价：</span>
+          <span class="text-primary font-semibold">{{ totalProcedurePrice.toFixed(2) }}</span>
+          <span class="text-gray-400 ml-1">元/件</span>
+        </div>
       </div>
     </NForm>
 

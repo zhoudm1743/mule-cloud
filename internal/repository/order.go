@@ -2,8 +2,8 @@ package repository
 
 import (
 	"context"
-	"mule-cloud/core/database"
 	tenantCtx "mule-cloud/core/context"
+	"mule-cloud/core/database"
 	"mule-cloud/internal/models"
 	"time"
 
@@ -43,7 +43,7 @@ func (r *orderRepository) GetCollectionWithContext(ctx context.Context) *mongo.C
 // Get 获取订单
 func (r *orderRepository) Get(ctx context.Context, id string) (*models.Order, error) {
 	collection := r.GetCollectionWithContext(ctx)
-	
+
 	var order models.Order
 	err := collection.FindOne(ctx, bson.M{"_id": id, "is_deleted": 0}).Decode(&order)
 	if err != nil {
@@ -52,14 +52,14 @@ func (r *orderRepository) Get(ctx context.Context, id string) (*models.Order, er
 		}
 		return nil, err
 	}
-	
+
 	return &order, nil
 }
 
 // GetByContractNo 根据合同号获取订单
 func (r *orderRepository) GetByContractNo(ctx context.Context, contractNo string) (*models.Order, error) {
 	collection := r.GetCollectionWithContext(ctx)
-	
+
 	var order models.Order
 	err := collection.FindOne(ctx, bson.M{"contract_no": contractNo, "is_deleted": 0}).Decode(&order)
 	if err != nil {
@@ -68,19 +68,19 @@ func (r *orderRepository) GetByContractNo(ctx context.Context, contractNo string
 		}
 		return nil, err
 	}
-	
+
 	return &order, nil
 }
 
 // Create 创建订单
 func (r *orderRepository) Create(ctx context.Context, order *models.Order) error {
 	collection := r.GetCollectionWithContext(ctx)
-	
+
 	result, err := collection.InsertOne(ctx, order)
 	if err != nil {
 		return err
 	}
-	
+
 	order.ID = result.InsertedID.(string)
 	return nil
 }
@@ -88,27 +88,27 @@ func (r *orderRepository) Create(ctx context.Context, order *models.Order) error
 // Update 更新订单
 func (r *orderRepository) Update(ctx context.Context, id string, update bson.M) error {
 	collection := r.GetCollectionWithContext(ctx)
-	
+
 	_, err := collection.UpdateOne(
 		ctx,
 		bson.M{"_id": id, "is_deleted": 0},
 		bson.M{"$set": update},
 	)
-	
+
 	return err
 }
 
 // Delete 删除订单（软删除）
 func (r *orderRepository) Delete(ctx context.Context, id string) error {
 	collection := r.GetCollectionWithContext(ctx)
-	
+
 	now := time.Now().Unix()
 	_, err := collection.UpdateOne(
 		ctx,
 		bson.M{"_id": id},
 		bson.M{"$set": bson.M{"is_deleted": 1, "deleted_at": now}},
 	)
-	
+
 	return err
 }
 
