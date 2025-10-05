@@ -52,4 +52,3 @@ func ValidateStyleProcedures(procedures []models.StyleProcedure) error {
 
 	return nil
 }
-
