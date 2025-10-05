@@ -14,6 +14,9 @@ import (
 	"mule-cloud/app/basic/services"
 	"mule-cloud/app/basic/transport"
 
+	jwtPkg "mule-cloud/core/jwt"
+	"mule-cloud/core/middleware"
+
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 )
@@ -39,12 +42,14 @@ func main() {
 		zap.Int("port", cfg.Server.Port),
 	)
 
-	// 初始化MongoDB（如果启用）
+	// 初始化MongoDB DatabaseManager（如果启用）
 	if cfg.MongoDB.Enabled {
-		if _, err := dbPkg.InitMongoDB(&cfg.MongoDB); err != nil {
+		client, err := dbPkg.InitMongoDB(&cfg.MongoDB)
+		if err != nil {
 			loggerPkg.Fatal("初始化MongoDB失败", zap.Error(err))
 		}
-		defer dbPkg.CloseMongoDB()
+		dbPkg.InitDatabaseManager(client)
+		loggerPkg.Info("✅ DatabaseManager初始化成功（支持多租户数据库隔离）")
 	}
 
 	// 初始化Redis（如果启用）
@@ -72,9 +77,13 @@ func main() {
 	r.Use(gin.Logger())
 	r.Use(response.RecoveryMiddleware())
 	r.Use(response.UnifiedResponseMiddleware())
+	r.Use(middleware.OperationLogMiddleware())
+	// 初始化 JWT 管理器（用于直接访问时验证token）
+	jwtManager := jwtPkg.NewJWTManager(nil, 0)
 
-	// Basic路由组
+	// Basic路由组（需要认证）
 	basic := r.Group("/basic")
+	middleware.Apply(basic, jwtManager) // ✅ 一个函数搞定
 	{
 		// 颜色路由
 		color := basic.Group("/colors")

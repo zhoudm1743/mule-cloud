@@ -13,17 +13,25 @@ import (
 )
 
 type MenuRepository struct {
-	collection *mongo.Collection
+	dbManager *database.DatabaseManager
 }
 
 func NewMenuRepository() *MenuRepository {
 	return &MenuRepository{
-		collection: database.MongoDB.Collection(models.Menu{}.TableName()),
+		dbManager: database.GetDatabaseManager(),
 	}
+}
+
+// getCollection 获取集合（菜单是系统级别资源，始终使用系统数据库）
+func (r *MenuRepository) getCollection(ctx context.Context) *mongo.Collection {
+	// 菜单管理是系统级别功能，不区分租户，始终使用系统数据库
+	db := r.dbManager.GetDatabase("") // 空字符串表示系统数据库
+	return db.Collection("menu")
 }
 
 // Create 创建菜单
 func (r *MenuRepository) Create(ctx context.Context, menu *models.Menu) error {
+	collection := r.getCollection(ctx)
 	// 检查 name 唯一性（排除已软删除的）
 	existing, err := r.GetByName(ctx, menu.Name)
 	if err != nil {
@@ -38,7 +46,7 @@ func (r *MenuRepository) Create(ctx context.Context, menu *models.Menu) error {
 	menu.Status = 1
 	menu.IsDeleted = 0
 
-	result, err := r.collection.InsertOne(ctx, menu)
+	result, err := collection.InsertOne(ctx, menu)
 	if err != nil {
 		return fmt.Errorf("创建菜单失败: %w", err)
 	}
@@ -51,31 +59,51 @@ func (r *MenuRepository) Create(ctx context.Context, menu *models.Menu) error {
 
 // GetByID 根据ID获取菜单
 func (r *MenuRepository) GetByID(ctx context.Context, id string) (*models.Menu, error) {
-	objectID, err := bson.ObjectIDFromHex(id)
-	if err != nil {
-		return nil, fmt.Errorf("无效的ID格式: %w", err)
-	}
+	collection := r.getCollection(ctx)
 
 	var menu models.Menu
+
+	// 先尝试用字符串类型的_id查询（兼容Python脚本创建的数据）
 	filter := bson.M{
-		"_id":        objectID,
+		"_id":        id,
 		"is_deleted": 0,
 	}
 
-	err = r.collection.FindOne(ctx, filter).Decode(&menu)
+	err := collection.FindOne(ctx, filter).Decode(&menu)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return nil, fmt.Errorf("菜单不存在")
+			// 如果字符串查询失败，尝试用ObjectId查询
+			objectID, parseErr := bson.ObjectIDFromHex(id)
+			if parseErr != nil {
+				return nil, fmt.Errorf("菜单不存在")
+			}
+
+			filter = bson.M{
+				"_id":        objectID,
+				"is_deleted": 0,
+			}
+
+			err = collection.FindOne(ctx, filter).Decode(&menu)
+			if err != nil {
+				if err == mongo.ErrNoDocuments {
+					return nil, fmt.Errorf("菜单不存在")
+				}
+				return nil, fmt.Errorf("查询菜单失败: %w", err)
+			}
+			menu.ID = objectID.Hex()
+		} else {
+			return nil, fmt.Errorf("查询菜单失败: %w", err)
 		}
-		return nil, fmt.Errorf("查询菜单失败: %w", err)
+	} else {
+		menu.ID = id
 	}
 
-	menu.ID = objectID.Hex()
 	return &menu, nil
 }
 
 // GetAll 获取所有菜单（不分页）
 func (r *MenuRepository) GetAll(ctx context.Context) ([]*models.Menu, error) {
+	collection := r.getCollection(ctx)
 	filter := bson.M{
 		"is_deleted": 0,
 		"status":     1,
@@ -87,7 +115,7 @@ func (r *MenuRepository) GetAll(ctx context.Context) ([]*models.Menu, error) {
 		bson.E{Key: "created_at", Value: 1},
 	})
 
-	cursor, err := r.collection.Find(ctx, filter, opts)
+	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, fmt.Errorf("查询菜单列表失败: %w", err)
 	}
@@ -108,6 +136,7 @@ func (r *MenuRepository) GetAll(ctx context.Context) ([]*models.Menu, error) {
 
 // List 分页查询菜单
 func (r *MenuRepository) List(ctx context.Context, page, pageSize int, filters map[string]interface{}) ([]*models.Menu, int64, error) {
+	collection := r.getCollection(ctx)
 	filter := bson.M{"is_deleted": 0}
 
 	// 添加筛选条件
@@ -125,7 +154,7 @@ func (r *MenuRepository) List(ctx context.Context, page, pageSize int, filters m
 	}
 
 	// 计算总数
-	total, err := r.collection.CountDocuments(ctx, filter)
+	total, err := collection.CountDocuments(ctx, filter)
 	if err != nil {
 		return nil, 0, fmt.Errorf("统计菜单数量失败: %w", err)
 	}
@@ -140,7 +169,7 @@ func (r *MenuRepository) List(ctx context.Context, page, pageSize int, filters m
 			bson.E{Key: "created_at", Value: -1},
 		})
 
-	cursor, err := r.collection.Find(ctx, filter, opts)
+	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, fmt.Errorf("查询菜单列表失败: %w", err)
 	}
@@ -160,10 +189,7 @@ func (r *MenuRepository) List(ctx context.Context, page, pageSize int, filters m
 
 // Update 更新菜单
 func (r *MenuRepository) Update(ctx context.Context, id string, updates map[string]interface{}) error {
-	objectID, err := bson.ObjectIDFromHex(id)
-	if err != nil {
-		return fmt.Errorf("无效的ID格式: %w", err)
-	}
+	collection := r.getCollection(ctx)
 
 	// 如果更新了 name 字段，检查唯一性（排除当前记录和已软删除的）
 	if newName, ok := updates["name"].(string); ok && newName != "" {
@@ -179,20 +205,39 @@ func (r *MenuRepository) Update(ctx context.Context, id string, updates map[stri
 
 	updates["updated_at"] = time.Now().Unix()
 
+	// 先尝试用字符串_id更新
 	filter := bson.M{
-		"_id":        objectID,
+		"_id":        id,
 		"is_deleted": 0,
 	}
 
 	update := bson.M{"$set": updates}
 
-	result, err := r.collection.UpdateOne(ctx, filter, update)
+	result, err := collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("更新菜单失败: %w", err)
 	}
 
+	// 如果字符串_id没匹配到，尝试用ObjectId
 	if result.MatchedCount == 0 {
-		return fmt.Errorf("菜单不存在")
+		objectID, parseErr := bson.ObjectIDFromHex(id)
+		if parseErr != nil {
+			return fmt.Errorf("菜单不存在")
+		}
+
+		filter = bson.M{
+			"_id":        objectID,
+			"is_deleted": 0,
+		}
+
+		result, err = collection.UpdateOne(ctx, filter, update)
+		if err != nil {
+			return fmt.Errorf("更新菜单失败: %w", err)
+		}
+
+		if result.MatchedCount == 0 {
+			return fmt.Errorf("菜单不存在")
+		}
 	}
 
 	return nil
@@ -200,13 +245,11 @@ func (r *MenuRepository) Update(ctx context.Context, id string, updates map[stri
 
 // Delete 删除菜单（软删除）
 func (r *MenuRepository) Delete(ctx context.Context, id string) error {
-	objectID, err := bson.ObjectIDFromHex(id)
-	if err != nil {
-		return fmt.Errorf("无效的ID格式: %w", err)
-	}
+	collection := r.getCollection(ctx)
 
+	// 先尝试用字符串_id删除
 	filter := bson.M{
-		"_id":        objectID,
+		"_id":        id,
 		"is_deleted": 0,
 	}
 
@@ -218,13 +261,31 @@ func (r *MenuRepository) Delete(ctx context.Context, id string) error {
 		},
 	}
 
-	result, err := r.collection.UpdateOne(ctx, filter, update)
+	result, err := collection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("删除菜单失败: %w", err)
 	}
 
+	// 如果字符串_id没匹配到，尝试用ObjectId
 	if result.MatchedCount == 0 {
-		return fmt.Errorf("菜单不存在")
+		objectID, parseErr := bson.ObjectIDFromHex(id)
+		if parseErr != nil {
+			return fmt.Errorf("菜单不存在")
+		}
+
+		filter = bson.M{
+			"_id":        objectID,
+			"is_deleted": 0,
+		}
+
+		result, err = collection.UpdateOne(ctx, filter, update)
+		if err != nil {
+			return fmt.Errorf("删除菜单失败: %w", err)
+		}
+
+		if result.MatchedCount == 0 {
+			return fmt.Errorf("菜单不存在")
+		}
 	}
 
 	return nil
@@ -232,21 +293,15 @@ func (r *MenuRepository) Delete(ctx context.Context, id string) error {
 
 // BatchDelete 批量删除菜单
 func (r *MenuRepository) BatchDelete(ctx context.Context, ids []string) error {
-	var objectIDs []bson.ObjectID
-	for _, id := range ids {
-		objectID, err := bson.ObjectIDFromHex(id)
-		if err != nil {
-			continue
-		}
-		objectIDs = append(objectIDs, objectID)
-	}
+	collection := r.getCollection(ctx)
 
-	if len(objectIDs) == 0 {
+	if len(ids) == 0 {
 		return fmt.Errorf("没有有效的ID")
 	}
 
+	// 先尝试用字符串ID
 	filter := bson.M{
-		"_id":        bson.M{"$in": objectIDs},
+		"_id":        bson.M{"$in": ids},
 		"is_deleted": 0,
 	}
 
@@ -258,9 +313,35 @@ func (r *MenuRepository) BatchDelete(ctx context.Context, ids []string) error {
 		},
 	}
 
-	_, err := r.collection.UpdateMany(ctx, filter, update)
+	result, err := collection.UpdateMany(ctx, filter, update)
 	if err != nil {
 		return fmt.Errorf("批量删除菜单失败: %w", err)
+	}
+
+	// 如果字符串ID没匹配到任何记录，尝试用ObjectId
+	if result.MatchedCount == 0 {
+		var objectIDs []bson.ObjectID
+		for _, id := range ids {
+			objectID, err := bson.ObjectIDFromHex(id)
+			if err != nil {
+				continue
+			}
+			objectIDs = append(objectIDs, objectID)
+		}
+
+		if len(objectIDs) == 0 {
+			return fmt.Errorf("没有有效的ID")
+		}
+
+		filter = bson.M{
+			"_id":        bson.M{"$in": objectIDs},
+			"is_deleted": 0,
+		}
+
+		_, err = collection.UpdateMany(ctx, filter, update)
+		if err != nil {
+			return fmt.Errorf("批量删除菜单失败: %w", err)
+		}
 	}
 
 	return nil
@@ -268,13 +349,14 @@ func (r *MenuRepository) BatchDelete(ctx context.Context, ids []string) error {
 
 // GetByName 根据名称获取菜单
 func (r *MenuRepository) GetByName(ctx context.Context, name string) (*models.Menu, error) {
+	collection := r.getCollection(ctx)
 	var menu models.Menu
 	filter := bson.M{
 		"name":       name,
 		"is_deleted": 0,
 	}
 
-	err := r.collection.FindOne(ctx, filter).Decode(&menu)
+	err := collection.FindOne(ctx, filter).Decode(&menu)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
@@ -287,6 +369,7 @@ func (r *MenuRepository) GetByName(ctx context.Context, name string) (*models.Me
 
 // GetByPID 根据父级ID获取子菜单
 func (r *MenuRepository) GetByPID(ctx context.Context, pid *string) ([]*models.Menu, error) {
+	collection := r.getCollection(ctx)
 	filter := bson.M{
 		"is_deleted": 0,
 		"status":     1,
@@ -302,7 +385,7 @@ func (r *MenuRepository) GetByPID(ctx context.Context, pid *string) ([]*models.M
 		bson.E{Key: "order", Value: 1},
 	})
 
-	cursor, err := r.collection.Find(ctx, filter, opts)
+	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, fmt.Errorf("查询子菜单失败: %w", err)
 	}

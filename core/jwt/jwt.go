@@ -18,10 +18,11 @@ var (
 
 // Claims JWT声明
 type Claims struct {
-	UserID   string   `json:"user_id"`
-	Username string   `json:"username"`
-	TenantID string   `json:"tenant_id"` // 租户ID（空表示系统级用户）
-	Roles    []string `json:"roles"`     // 用户角色
+	UserID     string   `json:"user_id"`
+	Username   string   `json:"username"`
+	TenantID   string   `json:"tenant_id"`   // 租户ID（MongoDB ObjectID，用于兼容）
+	TenantCode string   `json:"tenant_code"` // 租户代码（用于数据库名称，推荐使用）
+	Roles      []string `json:"roles"`       // 用户角色
 	jwt.RegisteredClaims
 }
 
@@ -46,13 +47,16 @@ func NewJWTManager(secretKey []byte, duration time.Duration) *JWTManager {
 }
 
 // GenerateToken 生成JWT Token
-func (m *JWTManager) GenerateToken(userID, username, tenantID string, roles []string) (string, error) {
+// tenantID: 租户的 MongoDB ObjectID（用于兼容查询）
+// tenantCode: 租户代码（用于数据库名称）
+func (m *JWTManager) GenerateToken(userID, username, tenantID, tenantCode string, roles []string) (string, error) {
 	now := time.Now()
 	claims := Claims{
-		UserID:   userID,
-		Username: username,
-		TenantID: tenantID,
-		Roles:    roles,
+		UserID:     userID,
+		Username:   username,
+		TenantID:   tenantID,
+		TenantCode: tenantCode, // ✅ 新增：用于数据库连接
+		Roles:      roles,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(now.Add(m.tokenDuration)),
 			IssuedAt:  jwt.NewNumericDate(now),
@@ -93,7 +97,7 @@ func (m *JWTManager) RefreshToken(oldToken string) (string, error) {
 	}
 
 	// 即使过期也允许刷新（在一定时间窗口内）
-	return m.GenerateToken(claims.UserID, claims.Username, claims.TenantID, claims.Roles)
+	return m.GenerateToken(claims.UserID, claims.Username, claims.TenantID, claims.TenantCode, claims.Roles)
 }
 
 // HasRole 检查用户是否有指定角色

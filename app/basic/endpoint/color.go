@@ -12,7 +12,7 @@ import (
 func GetColorEndpoint(svc services.IColorService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ColorListRequest)
-		color, err := svc.Get(req.ID)
+		color, err := svc.Get(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -24,7 +24,7 @@ func GetColorEndpoint(svc services.IColorService) endpoint.Endpoint {
 func GetAllColorsEndpoint(svc services.IColorService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ColorListRequest)
-		colors, err := svc.GetAll(req)
+		colors, err := svc.GetAll(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -36,7 +36,7 @@ func GetAllColorsEndpoint(svc services.IColorService) endpoint.Endpoint {
 func ListColorsEndpoint(svc services.IColorService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ColorListRequest)
-		colors, total, err := svc.List(req)
+		colors, total, err := svc.List(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +51,7 @@ func ListColorsEndpoint(svc services.IColorService) endpoint.Endpoint {
 func CreateColorEndpoint(svc services.IColorService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ColorCreateRequest)
-		color, err := svc.Create(req)
+		color, err := svc.Create(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func CreateColorEndpoint(svc services.IColorService) endpoint.Endpoint {
 func UpdateColorEndpoint(svc services.IColorService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ColorUpdateRequest)
-		color, err := svc.Update(req)
+		color, err := svc.Update(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +75,7 @@ func UpdateColorEndpoint(svc services.IColorService) endpoint.Endpoint {
 func DeleteColorEndpoint(svc services.IColorService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ColorListRequest)
-		err := svc.Delete(req.ID)
+		err := svc.Delete(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}

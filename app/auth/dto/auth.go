@@ -2,8 +2,10 @@ package dto
 
 // LoginRequest 登录请求
 type LoginRequest struct {
-	Phone    string `json:"phone" binding:"required"`
-	Password string `json:"password" binding:"required"`
+	Phone      string `json:"phone" binding:"required"`
+	Password   string `json:"password" binding:"required"`
+	TenantCode string `json:"tenant_code"` // 租户代码（可选，为空则查询系统库）
+	IP         string `json:"ip"`          // 登录IP
 }
 
 // LoginResponse 登录响应
@@ -44,6 +46,19 @@ type RefreshTokenRequest struct {
 type RefreshTokenResponse struct {
 	Token     string `json:"token"`
 	ExpiresAt int64  `json:"expires_at"`
+}
+
+// TenantItem 租户列表项
+type TenantItem struct {
+	Code   string `json:"code"`
+	Name   string `json:"name"`
+	Status int    `json:"status"`
+}
+
+// GetTenantListResponse 获取租户列表响应
+type GetTenantListResponse struct {
+	Tenants []TenantItem `json:"tenants"`
+	Total   int          `json:"total"`
 }
 
 // ChangePasswordRequest 修改密码请求

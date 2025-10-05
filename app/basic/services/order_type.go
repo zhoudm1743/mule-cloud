@@ -13,12 +13,12 @@ import (
 
 // IOrderTypeService 订单类型服务接口
 type IOrderTypeService interface {
-	Get(id string) (*models.Basic, error)
-	GetAll(req dto.OrderTypeListRequest) ([]models.Basic, error)
-	List(req dto.OrderTypeListRequest) ([]models.Basic, int64, error)
-	Create(req dto.OrderTypeCreateRequest) (*models.Basic, error)
-	Update(req dto.OrderTypeUpdateRequest) (*models.Basic, error)
-	Delete(id string) error
+	Get(ctx context.Context, id string) (*models.Basic, error)
+	GetAll(ctx context.Context, req dto.OrderTypeListRequest) ([]models.Basic, error)
+	List(ctx context.Context, req dto.OrderTypeListRequest) ([]models.Basic, int64, error)
+	Create(ctx context.Context, req dto.OrderTypeCreateRequest) (*models.Basic, error)
+	Update(ctx context.Context, req dto.OrderTypeUpdateRequest) (*models.Basic, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // OrderTypeService 订单类型服务实现
@@ -33,19 +33,17 @@ func NewOrderTypeService() IOrderTypeService {
 }
 
 // Get 获取订单类型
-func (s *OrderTypeService) Get(id string) (*models.Basic, error) {
-	ctx := context.Background()
+func (s *OrderTypeService) Get(ctx context.Context, id string) (*models.Basic, error) {
 	return s.repo.Get(ctx, id)
 }
 
 // List 列表（分页查询）
-func (s *OrderTypeService) List(req dto.OrderTypeListRequest) ([]models.Basic, int64, error) {
-	ctx := context.Background()
-
+func (s *OrderTypeService) List(ctx context.Context, req dto.OrderTypeListRequest) ([]models.Basic, int64, error) {
 	// 构建过滤条件
-	filter := bson.M{"name": "order_type"}
+	filter := bson.M{"name": "order_type", "is_deleted": 0}
 	if req.Value != "" {
-		filter["value"] = req.Value
+		// 支持模糊搜索
+		filter["value"] = bson.M{"$regex": req.Value, "$options": "i"}
 	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
@@ -64,7 +62,7 @@ func (s *OrderTypeService) List(req dto.OrderTypeListRequest) ([]models.Basic, i
 		SetSort(bson.M{"created_at": -1})
 
 	// 使用 GetCollection 获取原始集合以使用 options
-	collection := s.repo.GetCollection()
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, err
@@ -81,20 +79,19 @@ func (s *OrderTypeService) List(req dto.OrderTypeListRequest) ([]models.Basic, i
 }
 
 // GetAll 获取所有订单类型（不分页）
-func (s *OrderTypeService) GetAll(req dto.OrderTypeListRequest) ([]models.Basic, error) {
-	ctx := context.Background()
-
+func (s *OrderTypeService) GetAll(ctx context.Context, req dto.OrderTypeListRequest) ([]models.Basic, error) {
 	// 构建过滤条件
-	filter := bson.M{"name": "order_type"}
+	filter := bson.M{"name": "order_type", "is_deleted": 0}
 	if req.Value != "" {
-		filter["value"] = req.Value
+		// 支持模糊搜索
+		filter["value"] = bson.M{"$regex": req.Value, "$options": "i"}
 	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
 	}
 	// 使用 GetCollection 获取原始集合以使用排序选项
 	opts := options.Find().SetSort(bson.M{"created_at": -1})
-	collection := s.repo.GetCollection()
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
@@ -111,8 +108,7 @@ func (s *OrderTypeService) GetAll(req dto.OrderTypeListRequest) ([]models.Basic,
 }
 
 // Create 创建订单类型
-func (s *OrderTypeService) Create(req dto.OrderTypeCreateRequest) (*models.Basic, error) {
-	ctx := context.Background()
+func (s *OrderTypeService) Create(ctx context.Context, req dto.OrderTypeCreateRequest) (*models.Basic, error) {
 	now := time.Now().Unix()
 
 	basic := &models.Basic{
@@ -132,9 +128,7 @@ func (s *OrderTypeService) Create(req dto.OrderTypeCreateRequest) (*models.Basic
 }
 
 // Update 更新订单类型
-func (s *OrderTypeService) Update(req dto.OrderTypeUpdateRequest) (*models.Basic, error) {
-	ctx := context.Background()
-
+func (s *OrderTypeService) Update(ctx context.Context, req dto.OrderTypeUpdateRequest) (*models.Basic, error) {
 	// 更新字段
 	update := bson.M{
 		"value":      req.Value,
@@ -152,7 +146,6 @@ func (s *OrderTypeService) Update(req dto.OrderTypeUpdateRequest) (*models.Basic
 }
 
 // Delete 删除订单类型
-func (s *OrderTypeService) Delete(id string) error {
-	ctx := context.Background()
+func (s *OrderTypeService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }

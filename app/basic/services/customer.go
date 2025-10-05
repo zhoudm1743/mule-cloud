@@ -13,12 +13,12 @@ import (
 
 // ICustomerService 客户服务接口
 type ICustomerService interface {
-	Get(id string) (*models.Basic, error)
-	GetAll(req dto.CustomerListRequest) ([]models.Basic, error)
-	List(req dto.CustomerListRequest) ([]models.Basic, int64, error)
-	Create(req dto.CustomerCreateRequest) (*models.Basic, error)
-	Update(req dto.CustomerUpdateRequest) (*models.Basic, error)
-	Delete(id string) error
+	Get(ctx context.Context, id string) (*models.Basic, error)
+	GetAll(ctx context.Context, req dto.CustomerListRequest) ([]models.Basic, error)
+	List(ctx context.Context, req dto.CustomerListRequest) ([]models.Basic, int64, error)
+	Create(ctx context.Context, req dto.CustomerCreateRequest) (*models.Basic, error)
+	Update(ctx context.Context, req dto.CustomerUpdateRequest) (*models.Basic, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // CustomerService 客户服务实现
@@ -33,19 +33,17 @@ func NewCustomerService() ICustomerService {
 }
 
 // Get 获取客户
-func (s *CustomerService) Get(id string) (*models.Basic, error) {
-	ctx := context.Background()
+func (s *CustomerService) Get(ctx context.Context, id string) (*models.Basic, error) {
 	return s.repo.Get(ctx, id)
 }
 
 // List 列表（分页查询）
-func (s *CustomerService) List(req dto.CustomerListRequest) ([]models.Basic, int64, error) {
-	ctx := context.Background()
-
+func (s *CustomerService) List(ctx context.Context, req dto.CustomerListRequest) ([]models.Basic, int64, error) {
 	// 构建过滤条件
-	filter := bson.M{"name": "customer"}
+	filter := bson.M{"name": "customer", "is_deleted": 0}
 	if req.Value != "" {
-		filter["value"] = req.Value
+		// 支持模糊搜索
+		filter["value"] = bson.M{"$regex": req.Value, "$options": "i"}
 	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
@@ -64,7 +62,7 @@ func (s *CustomerService) List(req dto.CustomerListRequest) ([]models.Basic, int
 		SetSort(bson.M{"created_at": -1})
 
 	// 使用 GetCollection 获取原始集合以使用 options
-	collection := s.repo.GetCollection()
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, err
@@ -81,20 +79,19 @@ func (s *CustomerService) List(req dto.CustomerListRequest) ([]models.Basic, int
 }
 
 // GetAll 获取所有客户（不分页）
-func (s *CustomerService) GetAll(req dto.CustomerListRequest) ([]models.Basic, error) {
-	ctx := context.Background()
-
+func (s *CustomerService) GetAll(ctx context.Context, req dto.CustomerListRequest) ([]models.Basic, error) {
 	// 构建过滤条件
-	filter := bson.M{"name": "customer"}
+	filter := bson.M{"name": "customer", "is_deleted": 0}
 	if req.Value != "" {
-		filter["value"] = req.Value
+		// 支持模糊搜索
+		filter["value"] = bson.M{"$regex": req.Value, "$options": "i"}
 	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
 	}
 	// 使用 GetCollection 获取原始集合以使用排序选项
 	opts := options.Find().SetSort(bson.M{"created_at": -1})
-	collection := s.repo.GetCollection()
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
@@ -111,8 +108,7 @@ func (s *CustomerService) GetAll(req dto.CustomerListRequest) ([]models.Basic, e
 }
 
 // Create 创建客户
-func (s *CustomerService) Create(req dto.CustomerCreateRequest) (*models.Basic, error) {
-	ctx := context.Background()
+func (s *CustomerService) Create(ctx context.Context, req dto.CustomerCreateRequest) (*models.Basic, error) {
 	now := time.Now().Unix()
 
 	basic := &models.Basic{
@@ -132,9 +128,7 @@ func (s *CustomerService) Create(req dto.CustomerCreateRequest) (*models.Basic, 
 }
 
 // Update 更新客户
-func (s *CustomerService) Update(req dto.CustomerUpdateRequest) (*models.Basic, error) {
-	ctx := context.Background()
-
+func (s *CustomerService) Update(ctx context.Context, req dto.CustomerUpdateRequest) (*models.Basic, error) {
 	// 更新字段
 	update := bson.M{
 		"value":      req.Value,
@@ -152,7 +146,6 @@ func (s *CustomerService) Update(req dto.CustomerUpdateRequest) (*models.Basic, 
 }
 
 // Delete 删除客户
-func (s *CustomerService) Delete(id string) error {
-	ctx := context.Background()
+func (s *CustomerService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }

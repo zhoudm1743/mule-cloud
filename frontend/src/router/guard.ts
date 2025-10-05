@@ -52,8 +52,8 @@ export function setupRouterGuard(router: Router) {
       return
     }
 
-    // 判断路由有无进行初始化
-    if (!routeStore.isInitAuthRoute && to.name !== 'login') {
+    // 判断路由有无进行初始化（只有登录用户才需要初始化路由）
+    if (!routeStore.isInitAuthRoute && to.name !== 'login' && isLogin) {
       try {
         await routeStore.initAuthRoute()
         // 动态路由加载完回到根路由
@@ -68,8 +68,12 @@ export function setupRouterGuard(router: Router) {
           return
         }
       }
-      catch {
-        // 如果路由初始化失败（比如 401 错误），重定向到登录页
+      catch (error) {
+        // 如果路由初始化失败（比如 401 错误），清除认证信息并重定向到登录页
+        // 这是预期行为，不需要显示错误信息
+        // 清除本地认证信息，防止后续请求继续使用无效token
+        local.remove('accessToken')
+        local.remove('refreshToken')
         const redirect = to.fullPath !== '/' ? to.fullPath : undefined
         next({ path: '/login', query: redirect ? { redirect } : undefined })
         return

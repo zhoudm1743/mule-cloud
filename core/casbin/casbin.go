@@ -329,11 +329,11 @@ func SyncRoleMenusWithPermissions(tenantID, roleID string, menuPermissions map[s
 func getMenuPathFromNameFallback(menuName string) string {
 	mapping := map[string]string{
 		"dashboard": "/dashboard",
-		"system":    "/system",
-		"admin":     "/system/admin",
-		"role":      "/system/role",
-		"tenant":    "/system/tenant",
-		"menu":      "/system/menu",
+		"perms":     "/perms",
+		"admin":     "/perms/admin",
+		"role":      "/perms/role",
+		"tenant":    "/perms/tenant",
+		"menu":      "/perms/menu",
 	}
 
 	if path, ok := mapping[menuName]; ok {

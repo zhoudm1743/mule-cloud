@@ -13,12 +13,12 @@ import (
 
 // IColorService 颜色服务接口
 type IColorService interface {
-	Get(id string) (*models.Basic, error)
-	GetAll(req dto.ColorListRequest) ([]models.Basic, error)
-	List(req dto.ColorListRequest) ([]models.Basic, int64, error)
-	Create(req dto.ColorCreateRequest) (*models.Basic, error)
-	Update(req dto.ColorUpdateRequest) (*models.Basic, error)
-	Delete(id string) error
+	Get(ctx context.Context, id string) (*models.Basic, error)
+	GetAll(ctx context.Context, req dto.ColorListRequest) ([]models.Basic, error)
+	List(ctx context.Context, req dto.ColorListRequest) ([]models.Basic, int64, error)
+	Create(ctx context.Context, req dto.ColorCreateRequest) (*models.Basic, error)
+	Update(ctx context.Context, req dto.ColorUpdateRequest) (*models.Basic, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // ColorService 颜色服务实现
@@ -33,19 +33,17 @@ func NewColorService() IColorService {
 }
 
 // Get 获取颜色
-func (s *ColorService) Get(id string) (*models.Basic, error) {
-	ctx := context.Background()
+func (s *ColorService) Get(ctx context.Context, id string) (*models.Basic, error) {
 	return s.repo.Get(ctx, id)
 }
 
 // List 列表（分页查询）
-func (s *ColorService) List(req dto.ColorListRequest) ([]models.Basic, int64, error) {
-	ctx := context.Background()
-
+func (s *ColorService) List(ctx context.Context, req dto.ColorListRequest) ([]models.Basic, int64, error) {
 	// 构建过滤条件
-	filter := bson.M{"name": "color"}
+	filter := bson.M{"name": "color", "is_deleted": 0}
 	if req.Value != "" {
-		filter["value"] = req.Value
+		// 支持模糊搜索
+		filter["value"] = bson.M{"$regex": req.Value, "$options": "i"}
 	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
@@ -64,8 +62,8 @@ func (s *ColorService) List(req dto.ColorListRequest) ([]models.Basic, int64, er
 		SetLimit(req.PageSize).
 		SetSort(bson.M{"created_at": -1})
 
-	// 使用 GetCollection 获取原始集合以使用 options
-	collection := s.repo.GetCollection()
+	// 使用 GetCollectionWithContext 获取原始集合以使用 options（支持租户隔离）
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, err
@@ -82,13 +80,12 @@ func (s *ColorService) List(req dto.ColorListRequest) ([]models.Basic, int64, er
 }
 
 // GetAll 获取所有颜色（不分页）
-func (s *ColorService) GetAll(req dto.ColorListRequest) ([]models.Basic, error) {
-	ctx := context.Background()
-
+func (s *ColorService) GetAll(ctx context.Context, req dto.ColorListRequest) ([]models.Basic, error) {
 	// 构建过滤条件
-	filter := bson.M{"name": "color"}
+	filter := bson.M{"name": "color", "is_deleted": 0}
 	if req.Value != "" {
-		filter["value"] = req.Value
+		// 支持模糊搜索
+		filter["value"] = bson.M{"$regex": req.Value, "$options": "i"}
 	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
@@ -113,8 +110,7 @@ func (s *ColorService) GetAll(req dto.ColorListRequest) ([]models.Basic, error) 
 }
 
 // Create 创建颜色
-func (s *ColorService) Create(req dto.ColorCreateRequest) (*models.Basic, error) {
-	ctx := context.Background()
+func (s *ColorService) Create(ctx context.Context, req dto.ColorCreateRequest) (*models.Basic, error) {
 	now := time.Now().Unix()
 
 	basic := &models.Basic{
@@ -134,9 +130,7 @@ func (s *ColorService) Create(req dto.ColorCreateRequest) (*models.Basic, error)
 }
 
 // Update 更新颜色
-func (s *ColorService) Update(req dto.ColorUpdateRequest) (*models.Basic, error) {
-	ctx := context.Background()
-
+func (s *ColorService) Update(ctx context.Context, req dto.ColorUpdateRequest) (*models.Basic, error) {
 	// 更新字段
 	update := bson.M{
 		"value":      req.Value,
@@ -154,7 +148,6 @@ func (s *ColorService) Update(req dto.ColorUpdateRequest) (*models.Basic, error)
 }
 
 // Delete 删除颜色
-func (s *ColorService) Delete(id string) error {
-	ctx := context.Background()
+func (s *ColorService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }

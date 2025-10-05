@@ -40,7 +40,7 @@ type GetProfileRequest struct {
 func MakeGetProfileEndpoint(svc services.IAuthService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(GetProfileRequest)
-		return svc.GetProfile(req.UserID)
+		return svc.GetProfile(ctx, req.UserID)
 	}
 }
 
@@ -53,7 +53,7 @@ type UpdateProfileRequest struct {
 func MakeUpdateProfileEndpoint(svc services.IAuthService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(UpdateProfileRequest)
-		return svc.UpdateProfile(req.UserID, req.Data)
+		return svc.UpdateProfile(ctx, req.UserID, req.Data)
 	}
 }
 
@@ -66,7 +66,7 @@ type ChangePasswordRequest struct {
 func MakeChangePasswordEndpoint(svc services.IAuthService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(ChangePasswordRequest)
-		return svc.ChangePassword(req.UserID, req.Data)
+		return svc.ChangePassword(ctx, req.UserID, req.Data)
 	}
 }
 
@@ -78,6 +78,13 @@ type GetUserRoutesRequest struct {
 func MakeGetUserRoutesEndpoint(svc services.IAuthService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(GetUserRoutesRequest)
-		return svc.GetUserRoutes(req.UserID)
+		return svc.GetUserRoutes(ctx, req.UserID)
+	}
+}
+
+// MakeGetTenantListEndpoint 创建获取租户列表端点
+func MakeGetTenantListEndpoint(svc services.IAuthService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		return svc.GetTenantList()
 	}
 }

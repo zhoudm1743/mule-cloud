@@ -5,14 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"mule-cloud/app/auth/dto"
+	tenantCtx "mule-cloud/core/context"
 	"mule-cloud/core/httpclient"
 	jwtPkg "mule-cloud/core/jwt"
+	"mule-cloud/core/logger"
 	"mule-cloud/internal/models"
 	"mule-cloud/internal/repository"
 	"mule-cloud/util"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.uber.org/zap"
 )
 
 var (
@@ -28,16 +31,20 @@ type IAuthService interface {
 	Login(req dto.LoginRequest) (*dto.LoginResponse, error)
 	Register(req dto.RegisterRequest) (*dto.RegisterResponse, error)
 	RefreshToken(req dto.RefreshTokenRequest) (*dto.RefreshTokenResponse, error)
-	GetProfile(userID string) (*dto.GetProfileResponse, error)
-	UpdateProfile(userID string, req dto.UpdateProfileRequest) (*dto.UpdateProfileResponse, error)
-	ChangePassword(userID string, req dto.ChangePasswordRequest) (*dto.ChangePasswordResponse, error)
+	GetProfile(ctx context.Context, userID string) (*dto.GetProfileResponse, error)
+	UpdateProfile(ctx context.Context, userID string, req dto.UpdateProfileRequest) (*dto.UpdateProfileResponse, error)
+	ChangePassword(ctx context.Context, userID string, req dto.ChangePasswordRequest) (*dto.ChangePasswordResponse, error)
 	ValidateToken(token string) (*jwtPkg.Claims, error)
-	GetUserRoutes(userID string) (*dto.GetUserRoutesResponse, error)
+	GetUserRoutes(ctx context.Context, userID string) (*dto.GetUserRoutesResponse, error)
+	GetTenantList() (*dto.GetTenantListResponse, error)
 }
 
 // AuthService 认证服务实现
 type AuthService struct {
 	repo       repository.AdminRepository
+	tenantRepo repository.TenantRepository
+	roleRepo   repository.RoleRepository
+	menuRepo   *repository.MenuRepository
 	jwtManager *jwtPkg.JWTManager
 	httpClient *httpclient.ServiceClient
 }
@@ -45,16 +52,22 @@ type AuthService struct {
 // NewAuthService 创建认证服务
 func NewAuthService(jwtManager *jwtPkg.JWTManager) IAuthService {
 	repo := repository.NewAdminRepository()
+	tenantRepo := repository.NewTenantRepository()
+	roleRepo := repository.NewRoleRepository()
+	menuRepo := repository.NewMenuRepository()
 
 	// 初始化 HTTP 客户端（用于服务间调用）
 	client, err := httpclient.NewServiceClient("localhost:8500")
 	if err != nil {
 		// 如果 Consul 不可用，记录日志但不阻止服务启动
-		fmt.Printf("警告: 无法连接 Consul，服务间调用将使用默认配置: %v\n", err)
+		logger.Warn("无法连接 Consul，服务间调用将使用默认配置", zap.Error(err))
 	}
 
 	return &AuthService{
 		repo:       repo,
+		tenantRepo: tenantRepo,
+		roleRepo:   roleRepo,
+		menuRepo:   menuRepo,
 		jwtManager: jwtManager,
 		httpClient: client,
 	}
@@ -65,14 +78,61 @@ func (s *AuthService) Login(req dto.LoginRequest) (*dto.LoginResponse, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// 查找用户（自动排除软删除）
-	admin, err := s.repo.GetByPhone(ctx, req.Phone)
-	if err != nil {
-		return nil, fmt.Errorf("查询用户失败: %w", err)
+	var tenantID string
+	var tenantCode string // ✅ 新增：租户代码（用于数据库连接）
+	var admin *models.Admin
+	var err error
+
+	// 1. 如果提供了租户代码，先查询租户
+	if req.TenantCode != "" {
+		logger.Info("租户登录",
+			zap.String("phone", req.Phone),
+			zap.String("tenant_code", req.TenantCode))
+
+		// 查询租户信息
+		tenant, err := s.tenantRepo.GetByCode(ctx, req.TenantCode)
+		if err != nil || tenant == nil {
+			logger.Warn("租户不存在", zap.String("tenant_code", req.TenantCode))
+			return nil, fmt.Errorf("租户不存在或已禁用")
+		}
+
+		tenantID = tenant.ID
+		tenantCode = tenant.Code // ✅ 保存租户代码
+		logger.Info("找到租户",
+			zap.String("id", tenant.ID),
+			zap.String("code", tenant.Code),
+			zap.String("name", tenant.Name))
+
+		// 设置租户Context（使用 code）
+		ctx = tenantCtx.WithTenantCode(ctx, tenantCode)
+
+		// 在租户库中查询用户
+		admin, err = s.repo.GetByPhone(ctx, req.Phone)
+		if err != nil {
+			logger.Error("查询租户用户失败", zap.Error(err))
+			return nil, fmt.Errorf("查询用户失败: %w", err)
+		}
+	} else {
+		// 2. 未提供租户代码，查询系统库（系统超管）
+		logger.Info("系统管理员登录", zap.String("phone", req.Phone))
+		ctx = tenantCtx.WithTenantCode(ctx, "") // 空=系统库
+		admin, err = s.repo.GetByPhone(ctx, req.Phone)
+		if err != nil {
+			logger.Error("查询系统用户失败", zap.Error(err))
+			return nil, fmt.Errorf("查询用户失败: %w", err)
+		}
+		logger.Debug("查询结果", zap.Bool("admin_found", admin != nil))
 	}
+
 	if admin == nil {
+		logger.Warn("用户不存在", zap.String("phone", req.Phone))
 		return nil, ErrUserNotFound
 	}
+
+	logger.Info("找到用户",
+		zap.String("id", admin.ID),
+		zap.String("nickname", admin.Nickname),
+		zap.Strings("roles", admin.Roles))
 
 	// 验证密码
 	hashedPassword := hashPassword(req.Password)
@@ -85,8 +145,8 @@ func (s *AuthService) Login(req dto.LoginRequest) (*dto.LoginResponse, error) {
 		return nil, ErrUserDisabled
 	}
 
-	// 生成JWT Token (使用 admin.ID 作为 user_id, 包含 tenant_id)
-	token, err := s.jwtManager.GenerateToken(admin.ID, admin.Nickname, admin.TenantID, admin.Roles)
+	// 生成JWT Token（同时包含 tenant_id 和 tenant_code）
+	token, err := s.jwtManager.GenerateToken(admin.ID, admin.Nickname, tenantID, tenantCode, admin.Roles)
 	if err != nil {
 		return nil, fmt.Errorf("生成token失败: %w", err)
 	}
@@ -95,20 +155,31 @@ func (s *AuthService) Login(req dto.LoginRequest) (*dto.LoginResponse, error) {
 	expiresAt := time.Now().Add(24 * time.Hour).Unix()
 
 	// 获取用户的菜单权限
-	menuPermissions, err := s.getUserMenuPermissions(ctx, admin.ID, admin.TenantID)
+	menuPermissions, err := s.getUserMenuPermissions(ctx, admin.ID, tenantID)
 	if err != nil {
 		// 如果获取失败，记录日志但不中断登录
-		fmt.Printf("警告: 获取用户菜单权限失败: %v\n", err)
+		logger.Warn("获取用户菜单权限失败", zap.Error(err))
+	}
+
+	extend := models.Extend{
+		LastLoginAt: time.Now().Unix(),
+		LoginCount:  admin.Extend.LoginCount + 1,
+		LastLoginIP: req.IP,
+	}
+	admin.Extend = extend
+	err = s.repo.Update(ctx, admin.ID, bson.M{"extend": admin.Extend})
+	if err != nil {
+		return nil, fmt.Errorf("更新用户扩展字段失败: %w", err)
 	}
 
 	return &dto.LoginResponse{
 		Token:           token,
 		UserID:          admin.ID,
-		TenantID:        admin.TenantID,
 		Phone:           admin.Phone,
 		Nickname:        admin.Nickname,
 		Avatar:          admin.Avatar,
 		Role:            admin.Roles,
+		TenantID:        tenantID,
 		MenuPermissions: menuPermissions,
 		ExpiresAt:       expiresAt,
 	}, nil
@@ -137,7 +208,6 @@ func (s *AuthService) Register(req dto.RegisterRequest) (*dto.RegisterResponse, 
 		Email:     req.Email,
 		Status:    1,                // 默认启用
 		Roles:     []string{"user"}, // 默认普通用户角色
-		TenantID:  "",               // 默认无租户
 		Avatar:    "",
 		IsDeleted: 0, // 未删除
 		CreatedAt: now,
@@ -174,10 +244,7 @@ func (s *AuthService) RefreshToken(req dto.RefreshTokenRequest) (*dto.RefreshTok
 }
 
 // GetProfile 获取个人信息
-func (s *AuthService) GetProfile(userID string) (*dto.GetProfileResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+func (s *AuthService) GetProfile(ctx context.Context, userID string) (*dto.GetProfileResponse, error) {
 	// 尝试通过 ID 或 Phone 查询（自动排除软删除）
 	admin, err := s.repo.Get(ctx, userID)
 	if err != nil {
@@ -195,7 +262,8 @@ func (s *AuthService) GetProfile(userID string) (*dto.GetProfileResponse, error)
 	}
 
 	// 获取用户的菜单权限
-	menuPermissions, err := s.getUserMenuPermissions(ctx, admin.ID, admin.TenantID)
+	tenantID := tenantCtx.GetTenantID(ctx)
+	menuPermissions, err := s.getUserMenuPermissions(ctx, admin.ID, tenantID)
 	if err != nil {
 		// 如果获取失败，记录日志但不中断
 		fmt.Printf("警告: 获取用户菜单权限失败: %v\n", err)
@@ -203,7 +271,6 @@ func (s *AuthService) GetProfile(userID string) (*dto.GetProfileResponse, error)
 
 	return &dto.GetProfileResponse{
 		UserID:          admin.ID,
-		TenantID:        admin.TenantID,
 		Phone:           admin.Phone,
 		Nickname:        admin.Nickname,
 		Avatar:          admin.Avatar,
@@ -217,10 +284,7 @@ func (s *AuthService) GetProfile(userID string) (*dto.GetProfileResponse, error)
 }
 
 // UpdateProfile 更新个人信息
-func (s *AuthService) UpdateProfile(userID string, req dto.UpdateProfileRequest) (*dto.UpdateProfileResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+func (s *AuthService) UpdateProfile(ctx context.Context, userID string, req dto.UpdateProfileRequest) (*dto.UpdateProfileResponse, error) {
 	// 构建更新字段
 	update := bson.M{
 		"updated_at": time.Now().Unix(),
@@ -250,10 +314,7 @@ func (s *AuthService) UpdateProfile(userID string, req dto.UpdateProfileRequest)
 }
 
 // ChangePassword 修改密码
-func (s *AuthService) ChangePassword(userID string, req dto.ChangePasswordRequest) (*dto.ChangePasswordResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
+func (s *AuthService) ChangePassword(ctx context.Context, userID string, req dto.ChangePasswordRequest) (*dto.ChangePasswordResponse, error) {
 	// 查找用户（自动排除软删除）
 	admin, err := s.repo.Get(ctx, userID)
 	if err != nil {
@@ -302,11 +363,9 @@ func (s *AuthService) ValidateToken(token string) (*jwtPkg.Claims, error) {
 }
 
 // GetUserRoutes 获取用户路由菜单
-func (s *AuthService) GetUserRoutes(userID string) (*dto.GetUserRoutesResponse, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// 获取用户信息（自动排除软删除）
+func (s *AuthService) GetUserRoutes(ctx context.Context, userID string) (*dto.GetUserRoutesResponse, error) {
+	// 使用传入的 context（包含租户信息）
+	// 获取用户信息（自动根据 context 中的租户ID查询对应数据库）
 	admin, err := s.repo.Get(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("查询用户失败: %w", err)
@@ -318,7 +377,7 @@ func (s *AuthService) GetUserRoutes(userID string) (*dto.GetUserRoutesResponse, 
 	// 系统超级管理员（角色包含 "super"）拥有所有菜单权限
 	for _, role := range admin.Roles {
 		if role == "super" {
-			// 调用 system 服务获取所有菜单
+			// 调用 perms 服务获取所有菜单
 			menus, err := s.fetchAllMenusFromSystem()
 			if err != nil {
 				return nil, fmt.Errorf("获取菜单失败: %w", err)
@@ -337,14 +396,112 @@ func (s *AuthService) GetUserRoutes(userID string) (*dto.GetUserRoutesResponse, 
 		}, nil
 	}
 
+	// ✅ 特殊处理：租户管理员角色（tenant_admin）拥有租户的所有菜单
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	if tenantCode != "" {
+		// 检查用户是否有租户管理员角色
+		for _, roleID := range admin.Roles {
+			role, err := s.roleRepo.Get(ctx, roleID)
+			if err == nil && role != nil && role.Code == "tenant_admin" {
+				// 租户管理员：返回租户拥有的所有菜单
+				logger.Info("租户管理员登录，返回租户所有菜单",
+					zap.String("user_id", userID),
+					zap.String("tenant_code", tenantCode))
+
+				// ✅ 使用 tenantCode 查询租户信息
+				tenant, err := s.tenantRepo.GetByCode(context.Background(), tenantCode)
+				if err != nil || tenant == nil {
+					logger.Error("获取租户信息失败", zap.Error(err))
+					break
+				}
+
+				// 获取所有菜单
+				allMenus, err := s.fetchAllMenusFromSystem()
+				if err != nil {
+					logger.Error("获取所有菜单失败", zap.Error(err))
+					break
+				}
+
+				// 过滤：返回租户拥有的菜单 + 自动添加父级菜单
+				tenantMenuMap := make(map[string]bool)
+				for _, menuName := range tenant.Menus {
+					tenantMenuMap[menuName] = true
+				}
+
+				// 创建菜单名称到完整菜单对象的映射
+				menuNameToItem := make(map[string]dto.RouteItem)
+				menuIDToName := make(map[string]string)
+				for _, menu := range allMenus {
+					menuNameToItem[menu.Name] = menu
+					menuIDToName[menu.ID] = menu.Name
+				}
+
+				// 自动添加父级菜单（递归）
+				var addParentMenus func(string)
+				addParentMenus = func(menuName string) {
+					menu, exists := menuNameToItem[menuName]
+					if !exists {
+						return
+					}
+
+					// 标记当前菜单
+					tenantMenuMap[menuName] = true
+
+					// 如果有父菜单，递归添加
+					if menu.PID != nil && *menu.PID != "" {
+						// 找到父菜单的名称
+						if parentName, ok := menuIDToName[*menu.PID]; ok {
+							addParentMenus(parentName)
+						}
+					}
+				}
+
+				// 为租户的每个菜单，递归添加其父级
+				for _, menuName := range tenant.Menus {
+					addParentMenus(menuName)
+				}
+
+				// 构建最终的菜单列表
+				var tenantMenus []dto.RouteItem
+				for _, menu := range allMenus {
+					if tenantMenuMap[menu.Name] {
+						tenantMenus = append(tenantMenus, menu)
+					}
+				}
+
+				logger.Info("租户管理员菜单",
+					zap.String("tenant_code", tenantCode),
+					zap.Strings("tenant_menus", tenant.Menus),
+					zap.Int("original_count", len(tenant.Menus)),
+					zap.Int("completed_count", len(tenantMenus)))
+				return &dto.GetUserRoutesResponse{
+					Routes: tenantMenus,
+				}, nil
+			}
+		}
+	}
+
 	// 获取用户所有角色的菜单权限（合并去重）
 	menuMap := make(map[string]dto.RouteItem)
 	for _, roleID := range admin.Roles {
-		menus, err := s.fetchRoleMenusFromSystem(roleID)
+		menus, err := s.fetchRoleMenusFromSystem(ctx, roleID) // ✅ 传递 ctx，保留租户信息
 		if err != nil {
 			// 忽略单个角色的错误，继续处理其他角色
+			fmt.Printf("警告: 获取角色 %s 菜单失败: %v\n", roleID, err)
 			continue
 		}
+
+		// ✅ 调试日志：查看角色分配的菜单
+		fmt.Printf("[调试] 角色 %s 的菜单数量: %d\n", roleID, len(menus))
+		for i, menu := range menus {
+			if i < 10 { // 只打印前10个，避免日志过多
+				fmt.Printf("[调试]   %d. %s (%s)\n", i+1, menu.Name, menu.Title)
+			}
+		}
+		if len(menus) > 10 {
+			fmt.Printf("[调试]   ... 还有 %d 个菜单\n", len(menus)-10)
+		}
+
 		for _, menu := range menus {
 			menuMap[menu.ID] = menu
 		}
@@ -361,33 +518,40 @@ func (s *AuthService) GetUserRoutes(userID string) (*dto.GetUserRoutesResponse, 
 	}, nil
 }
 
-// fetchAllMenusFromSystem 从 system 服务获取所有菜单
+// fetchAllMenusFromSystem 从数据库获取所有菜单
 func (s *AuthService) fetchAllMenusFromSystem() ([]dto.RouteItem, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	// ✅ 直接使用 repository 查询数据库（菜单在系统库）
+	ctx := context.Background() // 菜单在系统库，不需要租户上下文
 
-	var result struct {
-		Code int             `json:"code"`
-		Msg  string          `json:"msg"`
-		Data []dto.RouteItem `json:"data"`
+	menus, err := s.menuRepo.GetAll(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("查询菜单失败: %w", err)
 	}
 
-	// 使用 httpclient 调用 system 服务
-	if s.httpClient != nil {
-		err := s.httpClient.CallService(ctx, "GET", "systemservice", "/system/menus/all", nil, &result, nil)
-		if err != nil {
-			return nil, fmt.Errorf("调用 system 服务失败: %w", err)
-		}
-	} else {
-		// 降级方案：直接使用 HTTP 调用本地地址
-		return s.fetchAllMenusDirectly()
+	// 转换为 RouteItem
+	var routes []dto.RouteItem
+	for _, menu := range menus {
+		routes = append(routes, dto.RouteItem{
+			ID:            menu.ID,
+			PID:           menu.PID,
+			Name:          menu.Name,
+			Path:          menu.Path,
+			Title:         menu.Title,
+			RequiresAuth:  menu.RequiresAuth,
+			Icon:          menu.Icon,
+			MenuType:      menu.MenuType,
+			ComponentPath: menu.ComponentPath,
+			Redirect:      menu.Redirect,
+			Roles:         menu.Roles,
+			KeepAlive:     menu.KeepAlive,
+			Hide:          menu.Hide,
+			Order:         menu.Order,
+			Href:          menu.Href,
+			ActiveMenu:    menu.ActiveMenu,
+		})
 	}
 
-	if result.Code != 0 {
-		return nil, fmt.Errorf("system 服务返回错误: %s", result.Msg)
-	}
-
-	return result.Data, nil
+	return routes, nil
 }
 
 // fetchAllMenusDirectly 直接调用本地 system 服务（降级方案）
@@ -397,47 +561,39 @@ func (s *AuthService) fetchAllMenusDirectly() ([]dto.RouteItem, error) {
 	return nil, fmt.Errorf("Consul 不可用，无法获取菜单数据")
 }
 
-// fetchRoleMenusFromSystem 从 system 服务获取角色的菜单权限
-func (s *AuthService) fetchRoleMenusFromSystem(roleID string) ([]dto.RouteItem, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	var result struct {
-		Code int      `json:"code"`
-		Msg  string   `json:"msg"`
-		Data []string `json:"data"` // 后端直接返回菜单 name 数组
+// fetchRoleMenusFromSystem 从数据库获取角色的菜单权限
+func (s *AuthService) fetchRoleMenusFromSystem(ctx context.Context, roleID string) ([]dto.RouteItem, error) {
+	// ✅ 直接使用 repository 查询角色（使用传入的 ctx，包含租户信息）
+	role, err := s.roleRepo.Get(ctx, roleID)
+	if err != nil {
+		return nil, fmt.Errorf("查询角色失败: %w", err)
+	}
+	if role == nil {
+		return nil, fmt.Errorf("角色不存在")
 	}
 
-	// 使用 httpclient 调用 system 服务
-	path := fmt.Sprintf("/system/roles/%s/menus", roleID)
-	if s.httpClient != nil {
-		err := s.httpClient.CallService(ctx, "GET", "systemservice", path, nil, &result, nil)
-		if err != nil {
-			return nil, fmt.Errorf("调用 system 服务失败: %w", err)
-		}
-	} else {
-		// 降级方案
-		return nil, fmt.Errorf("Consul 不可用，无法获取角色菜单权限")
+	// 获取角色的菜单列表（menu name 数组）
+	menuNames := role.Menus
+	if len(menuNames) == 0 {
+		// 角色没有分配任何菜单
+		return []dto.RouteItem{}, nil
 	}
 
-	if result.Code != 0 {
-		return nil, fmt.Errorf("system 服务返回错误: %s", result.Msg)
-	}
-
-	// 根据菜单 name 列表获取完整的菜单信息
+	// 获取所有菜单（菜单在系统库）
 	allMenus, err := s.fetchAllMenusFromSystem()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("获取菜单列表失败: %w", err)
 	}
 
-	// 过滤出角色拥有的菜单（使用 name 而不是 ID）
+	// 构建菜单 name -> RouteItem 的映射
 	menuMap := make(map[string]dto.RouteItem)
 	for _, menu := range allMenus {
 		menuMap[menu.Name] = menu
 	}
 
-	routes := make([]dto.RouteItem, 0)
-	for _, menuName := range result.Data {
+	// 过滤出角色拥有的菜单
+	routes := make([]dto.RouteItem, 0, len(menuNames))
+	for _, menuName := range menuNames {
 		if menu, ok := menuMap[menuName]; ok {
 			routes = append(routes, menu)
 		}
@@ -459,36 +615,32 @@ func (s *AuthService) getUserMenuPermissions(ctx context.Context, userID, tenant
 		return make(map[string][]string), nil
 	}
 
-	// 通过 HTTP 调用 system 服务获取角色详情
+	// ✅ 系统超级管理员直接返回所有权限
+	for _, role := range admin.Roles {
+		if role == "super" {
+			// 系统管理员拥有所有权限，返回空 map 表示无限制
+			// 前端会根据菜单列表自动判断权限
+			return make(map[string][]string), nil
+		}
+	}
+
+	// 直接查询角色信息（使用当前context，包含租户信息）
 	menuPermissions := make(map[string][]string)
 
 	for _, roleID := range admin.Roles {
-		// 调用 system 服务获取角色信息
-		var roleResult struct {
-			Code int    `json:"code"`
-			Msg  string `json:"msg"`
-			Data struct {
-				ID              string              `json:"id"`
-				Name            string              `json:"name"`
-				Menus           []string            `json:"menus"`
-				MenuPermissions map[string][]string `json:"menu_permissions"`
-			} `json:"data"`
-		}
-
-		path := fmt.Sprintf("/system/roles/%s", roleID)
-		err := s.httpClient.CallService(ctx, "GET", "systemservice", path, nil, &roleResult, nil)
+		// 直接从数据库获取角色信息（会自动根据context中的租户ID查询）
+		role, err := s.roleRepo.Get(ctx, roleID)
 		if err != nil {
 			fmt.Printf("警告: 获取角色 %s 信息失败: %v\n", roleID, err)
 			continue
 		}
-
-		if roleResult.Code != 0 {
-			fmt.Printf("警告: 获取角色 %s 信息失败: %s\n", roleID, roleResult.Msg)
+		if role == nil {
+			fmt.Printf("警告: 角色 %s 不存在\n", roleID)
 			continue
 		}
 
 		// 合并该角色的菜单权限
-		for menuName, actions := range roleResult.Data.MenuPermissions {
+		for menuName, actions := range role.MenuPermissions {
 			if existingActions, ok := menuPermissions[menuName]; ok {
 				// 菜单已存在，合并权限（去重）
 				actionSet := make(map[string]bool)
@@ -512,6 +664,41 @@ func (s *AuthService) getUserMenuPermissions(ctx context.Context, userID, tenant
 	}
 
 	return menuPermissions, nil
+}
+
+// GetTenantList 获取租户列表（用于登录页面选择租户）
+func (s *AuthService) GetTenantList() (*dto.GetTenantListResponse, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// 设置空的tenantID以查询系统数据库
+	ctx = tenantCtx.WithTenantID(ctx, "")
+
+	// 查询所有启用的租户
+	filter := bson.M{
+		"status":     1, // 只返回启用的租户
+		"is_deleted": 0,
+	}
+
+	tenants, err := s.tenantRepo.Find(ctx, filter)
+	if err != nil {
+		return nil, fmt.Errorf("查询租户列表失败: %w", err)
+	}
+
+	// 转换为DTO
+	tenantItems := make([]dto.TenantItem, 0, len(tenants))
+	for _, tenant := range tenants {
+		tenantItems = append(tenantItems, dto.TenantItem{
+			Code:   tenant.Code,
+			Name:   tenant.Name,
+			Status: tenant.Status,
+		})
+	}
+
+	return &dto.GetTenantListResponse{
+		Tenants: tenantItems,
+		Total:   len(tenantItems),
+	}, nil
 }
 
 func hashPassword(password string) string {

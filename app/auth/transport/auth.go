@@ -17,6 +17,7 @@ func LoginHandler(svc services.IAuthService) gin.HandlerFunc {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
+		req.IP = c.ClientIP()
 
 		ep := endpoint.MakeLoginEndpoint(svc)
 		resp, err := ep(c.Request.Context(), req)
@@ -169,6 +170,20 @@ func GetUserRoutesHandler(svc services.IAuthService) gin.HandlerFunc {
 		resp, err := ep(c.Request.Context(), endpoint.GetUserRoutesRequest{
 			UserID: userID,
 		})
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}
+
+// GetTenantListHandler 获取租户列表处理器（用于登录页面选择租户）
+func GetTenantListHandler(svc services.IAuthService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		ep := endpoint.MakeGetTenantListEndpoint(svc)
+		resp, err := ep(c.Request.Context(), nil)
 		if err != nil {
 			response.Error(c, err.Error())
 			return

@@ -64,27 +64,52 @@ export function handleServiceResult(data: any, isSuccess: boolean = true) {
   return result
 }
 
+// 防止重复刷新token的标志
+let isRefreshing = false
+let isLoggingOut = false
+
 /**
  * @description: 处理接口token刷新
  * @return {*}
  */
 export async function handleRefreshToken() {
-  const authStore = useAuthStore()
-  const isAutoRefresh = import.meta.env.VITE_AUTO_REFRESH_TOKEN === 'Y'
-  if (!isAutoRefresh) {
-    await authStore.logout()
+  // 如果正在登出或正在刷新，直接返回
+  if (isLoggingOut || isRefreshing) {
     return
   }
 
-  // 刷新token（后端使用单token机制）
-  const { data } = await fetchUpdateToken({ token: local.get('refreshToken') })
-  if (data) {
-    local.set('accessToken', data.token)
-    local.set('refreshToken', data.token)
-  }
-  else {
-    // 刷新失败，退出
+  const authStore = useAuthStore()
+  const isAutoRefresh = import.meta.env.VITE_AUTO_REFRESH_TOKEN === 'Y'
+  if (!isAutoRefresh) {
+    isLoggingOut = true
     await authStore.logout()
+    isLoggingOut = false
+    return
+  }
+
+  try {
+    isRefreshing = true
+    // 刷新token（后端使用单token机制）
+    const { data } = await fetchUpdateToken({ token: local.get('refreshToken') })
+    if (data) {
+      local.set('accessToken', data.token)
+      local.set('refreshToken', data.token)
+    }
+    else {
+      // 刷新失败，退出
+      isLoggingOut = true
+      await authStore.logout()
+      isLoggingOut = false
+    }
+  }
+  catch (error) {
+    // 刷新token时发生错误，退出登录
+    isLoggingOut = true
+    await authStore.logout()
+    isLoggingOut = false
+  }
+  finally {
+    isRefreshing = false
   }
 }
 

@@ -39,21 +39,15 @@ export const useRouteStore = defineStore('route-store', {
 
     async initRouteInfo() {
       if (import.meta.env.VITE_ROUTE_LOAD_MODE === 'dynamic') {
-        try {
-          // Get user's route from JWT token (不传 id 参数，后端自动从 JWT 获取)
-          const result = await fetchUserRoutes()
+        // Get user's route from JWT token (不传 id 参数，后端自动从 JWT 获取)
+        const result = await fetchUserRoutes()
 
-          if (!result.isSuccess || !result.data) {
-            throw new Error('Failed to fetch user routes')
-          }
+        if (!result.isSuccess || !result.data) {
+          throw new Error('Failed to fetch user routes')
+        }
 
-          // 后端返回的是 { routes: [...] }，需要提取 routes 数组
-          return result.data.routes
-        }
-        catch (error) {
-          console.error('Failed to initialize route info:', error)
-          throw error
-        }
+        // 后端返回的是 { routes: [...] }，需要提取 routes 数组
+        return result.data.routes
       }
       else {
         this.rowRoutes = staticRoutes
@@ -68,7 +62,7 @@ export const useRouteStore = defineStore('route-store', {
         const rowRoutes = await this.initRouteInfo()
         if (!rowRoutes) {
           const error = new Error('Failed to get route information')
-          window.$message.error($t(`app.getRouteError`))
+          // 不在这里显示错误消息，由调用者处理
           throw error
         }
         this.rowRoutes = rowRoutes
@@ -86,7 +80,7 @@ export const useRouteStore = defineStore('route-store', {
         this.isInitAuthRoute = true
       }
       catch (error) {
-        // 重置状态并重新抛出错误
+        // 重置状态并重新抛出错误，不显示消息
         this.isInitAuthRoute = false
         throw error
       }

@@ -12,7 +12,7 @@ import (
 func GetCustomerEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.CustomerListRequest)
-		customer, err := svc.Get(req.ID)
+		customer, err := svc.Get(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -24,7 +24,7 @@ func GetCustomerEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 func GetAllCustomersEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.CustomerListRequest)
-		customers, err := svc.GetAll(req)
+		customers, err := svc.GetAll(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -36,7 +36,7 @@ func GetAllCustomersEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 func ListCustomersEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.CustomerListRequest)
-		customers, total, err := svc.List(req)
+		customers, total, err := svc.List(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +51,7 @@ func ListCustomersEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 func CreateCustomerEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.CustomerCreateRequest)
-		customer, err := svc.Create(req)
+		customer, err := svc.Create(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func CreateCustomerEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 func UpdateCustomerEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.CustomerUpdateRequest)
-		customer, err := svc.Update(req)
+		customer, err := svc.Update(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +75,7 @@ func UpdateCustomerEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 func DeleteCustomerEndpoint(svc services.ICustomerService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.CustomerListRequest)
-		err := svc.Delete(req.ID)
+		err := svc.Delete(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}

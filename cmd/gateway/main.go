@@ -225,6 +225,18 @@ func (gw *Gateway) proxyHandler() gin.HandlerFunc {
 		if username, exists := c.Get("username"); exists {
 			c.Request.Header.Set("X-Username", username.(string))
 		}
+		if tenantID, exists := c.Get("tenant_id"); exists {
+			c.Request.Header.Set("X-Tenant-ID", tenantID.(string))
+		}
+		// ✅ 新增：传递租户代码（用于数据库连接）
+		if tenantCode, exists := c.Get("tenant_code"); exists {
+			c.Request.Header.Set("X-Tenant-Code", tenantCode.(string))
+		}
+		if rolesValue, exists := c.Get("roles"); exists {
+			if roles, ok := rolesValue.([]string); ok && len(roles) > 0 {
+				c.Request.Header.Set("X-Roles", strings.Join(roles, ","))
+			}
+		}
 
 		c.Request.Host = target.Host
 

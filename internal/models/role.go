@@ -5,7 +5,6 @@ import "go.mongodb.org/mongo-driver/v2/bson"
 // Role 角色模型
 type Role struct {
 	ID              string              `json:"id" bson:"_id,omitempty"`
-	TenantID        string              `json:"tenant_id" bson:"tenant_id"`                                   // 租户ID（空表示超级管理员角色）
 	Name            string              `json:"name" bson:"name"`                                             // 角色名称
 	Code            string              `json:"code" bson:"code"`                                             // 角色代码（唯一标识）
 	Description     string              `json:"description" bson:"description"`                               // 角色描述

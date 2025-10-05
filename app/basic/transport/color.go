@@ -93,14 +93,17 @@ func CreateColorHandler(svc services.IColorService) gin.HandlerFunc {
 func UpdateColorHandler(svc services.IColorService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.ColorUpdateRequest
-		if err := c.ShouldBindUri(&req); err != nil {
-			response.Error(c, "参数错误: "+err.Error())
-			return
-		}
+		// 先绑定 JSON body（包含 required 字段）
 		if err := c.ShouldBindJSON(&req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
+		// 再绑定 URI 参数（ID）
+		if err := c.ShouldBindUri(&req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
 
 		ep := endpoint.UpdateColorEndpoint(svc)
 		resp, err := ep(c.Request.Context(), req)

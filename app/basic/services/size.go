@@ -13,12 +13,12 @@ import (
 
 // ISizeService 尺寸服务接口
 type ISizeService interface {
-	Get(id string) (*models.Basic, error)
-	GetAll(req dto.SizeListRequest) ([]*models.Basic, error)
-	List(req dto.SizeListRequest) ([]*models.Basic, int64, error)
-	Create(req dto.SizeCreateRequest) (*models.Basic, error)
-	Update(req dto.SizeUpdateRequest) (*models.Basic, error)
-	Delete(id string) error
+	Get(ctx context.Context, id string) (*models.Basic, error)
+	GetAll(ctx context.Context, req dto.SizeListRequest) ([]*models.Basic, error)
+	List(ctx context.Context, req dto.SizeListRequest) ([]*models.Basic, int64, error)
+	Create(ctx context.Context, req dto.SizeCreateRequest) (*models.Basic, error)
+	Update(ctx context.Context, req dto.SizeUpdateRequest) (*models.Basic, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // SizeService 尺寸服务实现
@@ -33,19 +33,17 @@ func NewSizeService() ISizeService {
 }
 
 // Get 获取尺寸
-func (s *SizeService) Get(id string) (*models.Basic, error) {
-	ctx := context.Background()
+func (s *SizeService) Get(ctx context.Context, id string) (*models.Basic, error) {
 	return s.repo.Get(ctx, id)
 }
 
 // GetAll 获取所有尺寸（不分页）
-func (s *SizeService) GetAll(req dto.SizeListRequest) ([]*models.Basic, error) {
-	ctx := context.Background()
-
+func (s *SizeService) GetAll(ctx context.Context, req dto.SizeListRequest) ([]*models.Basic, error) {
 	// 构建过滤条件
-	filter := bson.M{"name": "size"}
+	filter := bson.M{"name": "size", "is_deleted": 0}
 	if req.Value != "" {
-		filter["value"] = req.Value
+		// 支持模糊搜索
+		filter["value"] = bson.M{"$regex": req.Value, "$options": "i"}
 	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
@@ -53,7 +51,7 @@ func (s *SizeService) GetAll(req dto.SizeListRequest) ([]*models.Basic, error) {
 
 	// 使用 GetCollection 获取原始集合以使用排序选项
 	opts := options.Find().SetSort(bson.M{"created_at": 1}) // 按创建时间正序
-	collection := s.repo.GetCollection()
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
@@ -70,13 +68,12 @@ func (s *SizeService) GetAll(req dto.SizeListRequest) ([]*models.Basic, error) {
 }
 
 // List 列表（分页查询）
-func (s *SizeService) List(req dto.SizeListRequest) ([]*models.Basic, int64, error) {
-	ctx := context.Background()
-
+func (s *SizeService) List(ctx context.Context, req dto.SizeListRequest) ([]*models.Basic, int64, error) {
 	// 构建过滤条件
-	filter := bson.M{"name": "size"}
+	filter := bson.M{"name": "size", "is_deleted": 0}
 	if req.Value != "" {
-		filter["value"] = req.Value
+		// 支持模糊搜索
+		filter["value"] = bson.M{"$regex": req.Value, "$options": "i"}
 	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
@@ -95,7 +92,7 @@ func (s *SizeService) List(req dto.SizeListRequest) ([]*models.Basic, int64, err
 		SetSort(bson.M{"created_at": 1})
 
 	// 使用 GetCollection 获取原始集合以使用 options
-	collection := s.repo.GetCollection()
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, err
@@ -112,8 +109,7 @@ func (s *SizeService) List(req dto.SizeListRequest) ([]*models.Basic, int64, err
 }
 
 // Create 创建尺寸
-func (s *SizeService) Create(req dto.SizeCreateRequest) (*models.Basic, error) {
-	ctx := context.Background()
+func (s *SizeService) Create(ctx context.Context, req dto.SizeCreateRequest) (*models.Basic, error) {
 	now := time.Now().Unix()
 
 	basic := &models.Basic{
@@ -133,9 +129,7 @@ func (s *SizeService) Create(req dto.SizeCreateRequest) (*models.Basic, error) {
 }
 
 // Update 更新尺寸
-func (s *SizeService) Update(req dto.SizeUpdateRequest) (*models.Basic, error) {
-	ctx := context.Background()
-
+func (s *SizeService) Update(ctx context.Context, req dto.SizeUpdateRequest) (*models.Basic, error) {
 	// 更新字段
 	update := bson.M{
 		"value":      req.Value,
@@ -153,7 +147,6 @@ func (s *SizeService) Update(req dto.SizeUpdateRequest) (*models.Basic, error) {
 }
 
 // Delete 删除尺寸
-func (s *SizeService) Delete(id string) error {
-	ctx := context.Background()
+func (s *SizeService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }

@@ -12,7 +12,7 @@ import (
 func GetOrderTypeEndpoint(svc services.IOrderTypeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.OrderTypeListRequest)
-		orderType, err := svc.Get(req.ID)
+		orderType, err := svc.Get(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -24,7 +24,7 @@ func GetOrderTypeEndpoint(svc services.IOrderTypeService) endpoint.Endpoint {
 func GetAllOrderTypesEndpoint(svc services.IOrderTypeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.OrderTypeListRequest)
-		orderTypes, err := svc.GetAll(req)
+		orderTypes, err := svc.GetAll(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -36,7 +36,7 @@ func GetAllOrderTypesEndpoint(svc services.IOrderTypeService) endpoint.Endpoint 
 func ListOrderTypesEndpoint(svc services.IOrderTypeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.OrderTypeListRequest)
-		orderTypes, total, err := svc.List(req)
+		orderTypes, total, err := svc.List(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +51,7 @@ func ListOrderTypesEndpoint(svc services.IOrderTypeService) endpoint.Endpoint {
 func CreateOrderTypeEndpoint(svc services.IOrderTypeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.OrderTypeCreateRequest)
-		orderType, err := svc.Create(req)
+		orderType, err := svc.Create(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func CreateOrderTypeEndpoint(svc services.IOrderTypeService) endpoint.Endpoint {
 func UpdateOrderTypeEndpoint(svc services.IOrderTypeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.OrderTypeUpdateRequest)
-		orderType, err := svc.Update(req)
+		orderType, err := svc.Update(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +75,7 @@ func UpdateOrderTypeEndpoint(svc services.IOrderTypeService) endpoint.Endpoint {
 func DeleteOrderTypeEndpoint(svc services.IOrderTypeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.OrderTypeListRequest)
-		err := svc.Delete(req.ID)
+		err := svc.Delete(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}

@@ -23,7 +23,14 @@ const { onAuthRequired, onResponseRefreshToken } = createServerTokenAuthenticati
       const res = await response.clone().json()
 
       const isExpired = method.meta && method.meta.isExpired
-      return (response.status === 401 || res.code === 401) && !isExpired
+      const authRole = method.meta && method.meta.authRole
+      
+      // 排除刷新token请求、登录请求和已标记为过期的请求
+      if (authRole === 'refreshToken' || authRole === null || isExpired) {
+        return false
+      }
+      
+      return response.status === 401 || res.code === 401
     },
 
     // 当token过期时触发，在此函数中触发刷新token
@@ -63,6 +70,16 @@ export function createAlovaInstance(
         method.config.headers['Content-Type'] = 'application/x-www-form-urlencoded'
         method.data = new URLSearchParams(method.data as URLSearchParams).toString()
       }
+      
+      // ✅ 系统管理员：添加租户上下文 header（如果已选择租户）
+      const userInfo = local.get('userInfo')
+      const selectedTenantId = local.get('selected_tenant_id')
+      
+      if (userInfo && !userInfo.tenant_id && selectedTenantId) {
+        // 系统管理员 + 已选择租户 = 添加租户上下文 header
+        method.config.headers['X-Tenant-Context'] = selectedTenantId
+      }
+      
       alovaConfig.beforeRequest?.(method)
     }),
     responded: onResponseRefreshToken({
@@ -90,6 +107,11 @@ export function createAlovaInstance(
         return handleServiceResult(errorResult, false)
       },
       onError: (error, method) => {
+        // 如果是登录、注册或刷新token请求失败，不显示警告（会由业务层处理）
+        const authRole = method.meta && method.meta.authRole
+        if (authRole === 'refreshToken' || authRole === null) {
+          return
+        }
         const tip = `[${method.type}] - [${method.url}] - ${error.message}`
         window.$message?.warning(tip)
       },

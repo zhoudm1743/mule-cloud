@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import type { FormInst } from 'naive-ui'
+import type { FormInst, SelectOption } from 'naive-ui'
 import { useAuthStore } from '@/store'
 import { local } from '@/utils'
+import { fetchLoginTenantList } from '@/service'
 
 const emit = defineEmits(['update:modelValue'])
 
@@ -29,9 +30,46 @@ const rules = computed(() => {
 const formValue = ref({
   phone: '13800138000', // 默认手机号
   pwd: '123456',
+  tenantCode: '', // 租户代码（可选，空字符串表示系统管理员）
 })
 const isRemember = ref(false)
 const isLoading = ref(false)
+
+// 租户列表
+const tenantOptions = ref<SelectOption[]>([
+  {
+    label: '系统管理员',
+    value: '',
+  },
+])
+const isLoadingTenants = ref(false)
+
+// 获取租户列表
+async function loadTenantList() {
+  try {
+    isLoadingTenants.value = true
+    const { data, error } = await fetchLoginTenantList()
+    if (!error && data) {
+      const tenants = data.tenants || []
+      tenantOptions.value = [
+        {
+          label: '系统管理员',
+          value: '',
+        },
+        ...tenants.map(tenant => ({
+          label: `${tenant.name} (${tenant.code})`,
+          value: tenant.code,
+        })),
+      ]
+    }
+  }
+  catch (err) {
+    console.error('加载租户列表失败:', err)
+  }
+  finally {
+    isLoadingTenants.value = false
+  }
+}
 
 const formRef = ref<FormInst | null>(null)
 function handleLogin() {
@@ -40,18 +78,19 @@ function handleLogin() {
       return
 
     isLoading.value = true
-    const { phone, pwd } = formValue.value
+    const { phone, pwd, tenantCode } = formValue.value
 
     if (isRemember.value)
-      local.set('loginAccount', { phone, pwd })
+      local.set('loginAccount', { phone, pwd, tenantCode })
     else local.remove('loginAccount')
 
-    await authStore.login(phone, pwd)
+    await authStore.login(phone, pwd, tenantCode)
     isLoading.value = false
   })
 }
 onMounted(() => {
   checkUserAccount()
+  loadTenantList()
 })
 function checkUserAccount() {
   const loginAccount = local.get('loginAccount')
@@ -69,11 +108,31 @@ function checkUserAccount() {
       {{ $t('login.signInTitle') }}
     </n-h2>
     <n-form ref="formRef" :rules="rules" :model="formValue" :show-label="false" size="large">
+      <n-form-item path="tenantCode">
+        <n-select
+          v-model:value="formValue.tenantCode"
+          :options="tenantOptions"
+          :loading="isLoadingTenants"
+          placeholder="选择租户"
+          clearable
+        >
+          <template #prefix>
+            <n-icon><icon-park-outline-building-four /></n-icon>
+          </template>
+        </n-select>
+      </n-form-item>
       <n-form-item path="phone">
-        <n-input v-model:value="formValue.phone" clearable placeholder="请输入手机号" />
+        <n-input v-model:value="formValue.phone" clearable placeholder="请输入手机号">
+          <template #prefix>
+            <n-icon><icon-park-outline-user /></n-icon>
+          </template>
+        </n-input>
       </n-form-item>
       <n-form-item path="pwd">
         <n-input v-model:value="formValue.pwd" type="password" :placeholder="$t('login.passwordPlaceholder')" clearable show-password-on="click">
+          <template #prefix>
+            <n-icon><icon-park-outline-lock /></n-icon>
+          </template>
           <template #password-invisible-icon>
             <icon-park-outline-preview-close-one />
           </template>

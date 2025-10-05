@@ -16,7 +16,7 @@ import (
 
 	"mule-cloud/app/auth/services"
 	"mule-cloud/app/auth/transport"
-	"mule-cloud/app/gateway/middleware"
+	"mule-cloud/core/middleware"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -44,12 +44,14 @@ func main() {
 		zap.Int("port", cfg.Server.Port),
 	)
 
-	// 初始化MongoDB（如果启用）
+	// 初始化MongoDB DatabaseManager（如果启用）
 	if cfg.MongoDB.Enabled {
-		if _, err := dbPkg.InitMongoDB(&cfg.MongoDB); err != nil {
+		client, err := dbPkg.InitMongoDB(&cfg.MongoDB)
+		if err != nil {
 			loggerPkg.Fatal("初始化MongoDB失败", zap.Error(err))
 		}
-		defer dbPkg.CloseMongoDB()
+		dbPkg.InitDatabaseManager(client)
+		loggerPkg.Info("✅ DatabaseManager初始化成功（支持多租户数据库隔离）")
 	}
 
 	// 初始化Redis（如果启用）
@@ -77,18 +79,19 @@ func main() {
 	r.Use(gin.Logger())
 	r.Use(response.RecoveryMiddleware())
 	r.Use(response.UnifiedResponseMiddleware())
-
+	r.Use(middleware.OperationLogMiddleware())
 	// 公开路由（不需要认证）
 	public := r.Group("/auth")
 	{
 		public.POST("/login", transport.LoginHandler(authSvc))
 		public.POST("/register", transport.RegisterHandler(authSvc))
 		public.POST("/refresh", transport.RefreshTokenHandler(authSvc))
+		public.GET("/tenants", transport.GetTenantListHandler(authSvc)) // 获取租户列表
 	}
 
 	// 需要认证的路由
 	protected := r.Group("/auth")
-	protected.Use(middleware.JWTAuth(jwtManager))
+	middleware.Apply(protected, jwtManager) // ✅ 一个函数搞定
 	{
 		protected.GET("/profile", transport.GetProfileHandler(authSvc))
 		protected.PUT("/profile", transport.UpdateProfileHandler(authSvc))

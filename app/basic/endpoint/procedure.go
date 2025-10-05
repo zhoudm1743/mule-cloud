@@ -12,7 +12,7 @@ import (
 func GetProcedureEndpoint(svc services.IProcedureService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ProcedureListRequest)
-		procedure, err := svc.Get(req.ID)
+		procedure, err := svc.Get(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -24,7 +24,7 @@ func GetProcedureEndpoint(svc services.IProcedureService) endpoint.Endpoint {
 func GetAllProceduresEndpoint(svc services.IProcedureService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ProcedureListRequest)
-		procedures, err := svc.GetAll(req)
+		procedures, err := svc.GetAll(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -36,7 +36,7 @@ func GetAllProceduresEndpoint(svc services.IProcedureService) endpoint.Endpoint 
 func ListProceduresEndpoint(svc services.IProcedureService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ProcedureListRequest)
-		procedures, total, err := svc.List(req)
+		procedures, total, err := svc.List(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +51,7 @@ func ListProceduresEndpoint(svc services.IProcedureService) endpoint.Endpoint {
 func CreateProcedureEndpoint(svc services.IProcedureService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ProcedureCreateRequest)
-		procedure, err := svc.Create(req)
+		procedure, err := svc.Create(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func CreateProcedureEndpoint(svc services.IProcedureService) endpoint.Endpoint {
 func UpdateProcedureEndpoint(svc services.IProcedureService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ProcedureUpdateRequest)
-		procedure, err := svc.Update(req)
+		procedure, err := svc.Update(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +75,7 @@ func UpdateProcedureEndpoint(svc services.IProcedureService) endpoint.Endpoint {
 func DeleteProcedureEndpoint(svc services.IProcedureService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.ProcedureListRequest)
-		err := svc.Delete(req.ID)
+		err := svc.Delete(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}

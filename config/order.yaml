@@ -1,0 +1,56 @@
+# Order Service 配置
+
+server:
+  name: "order-service"
+  host: "0.0.0.0"
+  port: 8004
+  mode: "debug"
+
+# MongoDB配置
+mongodb:
+  enabled: true
+  # 方式2: 使用独立配置（与basic/auth服务保持一致）
+  host: "127.0.0.1"
+  port: 27015
+  username: "root"
+  password: "bgg8384495"
+  database: "mule"
+  auth_source: "admin"  # 认证数据库
+  replica_set: ""       # 副本集名称（可选）
+  max_pool_size: 100    # 最大连接池大小
+  min_pool_size: 10     # 最小连接池大小
+  timeout: 10           # 连接超时（秒）
+
+# Redis配置（可选）
+redis:
+  enabled: false
+  host: "127.0.0.1"
+  port: 6379
+  password: ""
+  db: 0
+  pool_size: 10
+
+log:
+  level: "info"
+  format: "text"
+  output: "stdout"
+
+consul:
+  enabled: true
+  address: "127.0.0.1:8500"
+  scheme: "http"
+  service_name: "order-service"
+  service_ip: "192.168.31.78"  # 使用实际的网卡 IP
+  service_port: 8004
+  tags:
+    - "order"
+    - "public"
+  health_check_interval: "10s"
+  health_check_timeout: "5s"
+  deregister_after: "30s"
+
+# JWT配置
+jwt:
+  secret_key: "mule-cloud-super-secret-key-change-in-production-min-32-chars"
+  expire_time: 24  # 小时
+  issuer: "mule-cloud"

@@ -93,11 +93,13 @@ func CreateSizeHandler(svc services.ISizeService) gin.HandlerFunc {
 func UpdateSizeHandler(svc services.ISizeService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.SizeUpdateRequest
-		if err := c.ShouldBindUri(&req); err != nil {
+		// 先绑定 JSON body（包含 required 字段）
+		if err := c.ShouldBindJSON(&req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
-		if err := c.ShouldBindJSON(&req); err != nil {
+		// 再绑定 URI 参数（ID）
+		if err := c.ShouldBindUri(&req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}

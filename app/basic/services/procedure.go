@@ -13,12 +13,12 @@ import (
 
 // IProcedureService 工序服务接口
 type IProcedureService interface {
-	Get(id string) (*models.Basic, error)
-	GetAll(req dto.ProcedureListRequest) ([]models.Basic, error)
-	List(req dto.ProcedureListRequest) ([]models.Basic, int64, error)
-	Create(req dto.ProcedureCreateRequest) (*models.Basic, error)
-	Update(req dto.ProcedureUpdateRequest) (*models.Basic, error)
-	Delete(id string) error
+	Get(ctx context.Context, id string) (*models.Basic, error)
+	GetAll(ctx context.Context, req dto.ProcedureListRequest) ([]models.Basic, error)
+	List(ctx context.Context, req dto.ProcedureListRequest) ([]models.Basic, int64, error)
+	Create(ctx context.Context, req dto.ProcedureCreateRequest) (*models.Basic, error)
+	Update(ctx context.Context, req dto.ProcedureUpdateRequest) (*models.Basic, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // ProcedureService 工序服务实现
@@ -33,19 +33,17 @@ func NewProcedureService() IProcedureService {
 }
 
 // Get 获取工序
-func (s *ProcedureService) Get(id string) (*models.Basic, error) {
-	ctx := context.Background()
+func (s *ProcedureService) Get(ctx context.Context, id string) (*models.Basic, error) {
 	return s.repo.Get(ctx, id)
 }
 
 // List 列表（分页查询）
-func (s *ProcedureService) List(req dto.ProcedureListRequest) ([]models.Basic, int64, error) {
-	ctx := context.Background()
-
+func (s *ProcedureService) List(ctx context.Context, req dto.ProcedureListRequest) ([]models.Basic, int64, error) {
 	// 构建过滤条件
-	filter := bson.M{"name": "procedure"}
+	filter := bson.M{"name": "procedure", "is_deleted": 0}
 	if req.Value != "" {
-		filter["value"] = req.Value
+		// 支持模糊搜索
+		filter["value"] = bson.M{"$regex": req.Value, "$options": "i"}
 	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
@@ -64,7 +62,7 @@ func (s *ProcedureService) List(req dto.ProcedureListRequest) ([]models.Basic, i
 		SetSort(bson.M{"created_at": -1})
 
 	// 使用 GetCollection 获取原始集合以使用 options
-	collection := s.repo.GetCollection()
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, err
@@ -81,20 +79,19 @@ func (s *ProcedureService) List(req dto.ProcedureListRequest) ([]models.Basic, i
 }
 
 // GetAll 获取所有工序（不分页）
-func (s *ProcedureService) GetAll(req dto.ProcedureListRequest) ([]models.Basic, error) {
-	ctx := context.Background()
-
+func (s *ProcedureService) GetAll(ctx context.Context, req dto.ProcedureListRequest) ([]models.Basic, error) {
 	// 构建过滤条件
-	filter := bson.M{"name": "procedure"}
+	filter := bson.M{"name": "procedure", "is_deleted": 0}
 	if req.Value != "" {
-		filter["value"] = req.Value
+		// 支持模糊搜索
+		filter["value"] = bson.M{"$regex": req.Value, "$options": "i"}
 	}
 	if req.ID != "" {
 		filter["_id"] = req.ID
 	}
 	// 使用 GetCollection 获取原始集合以使用排序选项
 	opts := options.Find().SetSort(bson.M{"created_at": -1})
-	collection := s.repo.GetCollection()
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
@@ -111,8 +108,7 @@ func (s *ProcedureService) GetAll(req dto.ProcedureListRequest) ([]models.Basic,
 }
 
 // Create 创建工序
-func (s *ProcedureService) Create(req dto.ProcedureCreateRequest) (*models.Basic, error) {
-	ctx := context.Background()
+func (s *ProcedureService) Create(ctx context.Context, req dto.ProcedureCreateRequest) (*models.Basic, error) {
 	now := time.Now().Unix()
 
 	basic := &models.Basic{
@@ -132,9 +128,7 @@ func (s *ProcedureService) Create(req dto.ProcedureCreateRequest) (*models.Basic
 }
 
 // Update 更新工序
-func (s *ProcedureService) Update(req dto.ProcedureUpdateRequest) (*models.Basic, error) {
-	ctx := context.Background()
-
+func (s *ProcedureService) Update(ctx context.Context, req dto.ProcedureUpdateRequest) (*models.Basic, error) {
 	// 更新字段
 	update := bson.M{
 		"value":      req.Value,
@@ -152,7 +146,6 @@ func (s *ProcedureService) Update(req dto.ProcedureUpdateRequest) (*models.Basic
 }
 
 // Delete 删除工序
-func (s *ProcedureService) Delete(id string) error {
-	ctx := context.Background()
+func (s *ProcedureService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }

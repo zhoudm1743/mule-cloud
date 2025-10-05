@@ -72,8 +72,8 @@ export const useTabStore = defineStore('tab-store', {
       this.tabs = this.tabs.filter((item, i) => i <= index)
     },
     clearAllTabs() {
-      this.tabs.length = 0
-      this.pinTabs.length = 0
+      // 使用 $reset 重置整个 store 到初始状态，这会触发 persist 插件更新 sessionStorage
+      this.$reset()
     },
     closeAllTabs() {
       this.tabs.length = 0

@@ -35,13 +35,13 @@ export const useAuthStore = defineStore('auth-store', {
       tabStore.clearAllTabs()
       // 重置当前存储库
       this.$reset()
-      // 重定向到登录页
-      if (route.meta.requiresAuth) {
+      // 重定向到登录页（如果当前不在登录页）
+      if (route.name !== 'login') {
+        // 如果当前页面需要认证，则保存重定向地址
+        const redirect = route.meta.requiresAuth ? route.fullPath : undefined
         router.push({
           name: 'login',
-          query: {
-            redirect: route.fullPath,
-          },
+          query: redirect ? { redirect } : undefined,
         })
       }
     },
@@ -49,12 +49,17 @@ export const useAuthStore = defineStore('auth-store', {
       local.remove('accessToken')
       local.remove('refreshToken')
       local.remove('userInfo')
+      local.remove('selected_tenant_id') // 清除系统管理员选择的租户上下文
     },
 
     /* 用户登录 */
-    async login(phone: string, password: string) {
+    async login(phone: string, password: string, tenantCode?: string) {
       try {
-        const { isSuccess, data } = await fetchLogin({ phone, password })
+        const loginData: any = { phone, password }
+        if (tenantCode) {
+          loginData.tenant_code = tenantCode
+        }
+        const { isSuccess, data } = await fetchLogin(loginData)
         if (!isSuccess)
           return
 
@@ -74,6 +79,11 @@ export const useAuthStore = defineStore('auth-store', {
       local.set('refreshToken', data.token) // 后端目前只返回一个token
       this.token = data.token
       this.userInfo = data
+
+      // ✅ 系统管理员登录时，清除之前选择的租户上下文
+      if (!data.tenant_id) {
+        local.remove('selected_tenant_id')
+      }
 
       // 添加路由和菜单
       const routeStore = useRouteStore()

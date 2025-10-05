@@ -12,7 +12,7 @@ import (
 func GetSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.SizeGetRequest)
-		size, err := svc.Get(req.ID)
+		size, err := svc.Get(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -24,7 +24,7 @@ func GetSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
 func GetAllSizesEndpoint(svc services.ISizeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.SizeListRequest)
-		sizes, err := svc.GetAll(req)
+		sizes, err := svc.GetAll(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -39,7 +39,7 @@ func GetAllSizesEndpoint(svc services.ISizeService) endpoint.Endpoint {
 func ListSizesEndpoint(svc services.ISizeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.SizeListRequest)
-		sizes, total, err := svc.List(req)
+		sizes, total, err := svc.List(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -54,7 +54,7 @@ func ListSizesEndpoint(svc services.ISizeService) endpoint.Endpoint {
 func CreateSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.SizeCreateRequest)
-		size, err := svc.Create(req)
+		size, err := svc.Create(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +66,7 @@ func CreateSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
 func UpdateSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.SizeUpdateRequest)
-		size, err := svc.Update(req)
+		size, err := svc.Update(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -78,7 +78,7 @@ func UpdateSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
 func DeleteSizeEndpoint(svc services.ISizeService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.SizeGetRequest)
-		err := svc.Delete(req.ID)
+		err := svc.Delete(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}

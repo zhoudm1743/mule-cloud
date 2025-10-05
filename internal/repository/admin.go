@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	tenantCtx "mule-cloud/core/context"
 	"mule-cloud/core/database"
 	"mule-cloud/internal/models"
 	"time"
@@ -72,26 +73,34 @@ type AdminRepository interface {
 
 // adminRepository Admin数据仓库实现
 type adminRepository struct {
-	collection *mongo.Collection
+	dbManager *database.DatabaseManager
 }
 
 // NewAdminRepository 创建Admin数据仓库实例
 func NewAdminRepository() AdminRepository {
-	collection := database.MongoDB.Collection("admin")
 	return &adminRepository{
-		collection: collection,
+		dbManager: database.GetDatabaseManager(),
 	}
+}
+
+// getCollection 获取集合（自动根据Context中的租户ID切换数据库）
+func (r *adminRepository) getCollection(ctx context.Context) *mongo.Collection {
+	tenantID := tenantCtx.GetTenantID(ctx)
+	db := r.dbManager.GetDatabase(tenantID)
+	return db.Collection("admin")
 }
 
 // Get 根据ID获取单条记录（排除软删除）
 func (r *adminRepository) Get(ctx context.Context, id string) (*models.Admin, error) {
+	collection := r.getCollection(ctx)
+
 	// 将字符串 ID 转换为 ObjectID 进行查询
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		// 如果转换失败，尝试直接用字符串查询（兼容旧数据）
 		filter := bson.M{"_id": id, "is_deleted": 0}
 		admin := &models.Admin{}
-		err = r.collection.FindOne(ctx, filter).Decode(admin)
+		err = collection.FindOne(ctx, filter).Decode(admin)
 		if err != nil {
 			if err == mongo.ErrNoDocuments {
 				return nil, nil
@@ -104,7 +113,7 @@ func (r *adminRepository) Get(ctx context.Context, id string) (*models.Admin, er
 	// 使用 ObjectID 查询（排除软删除）
 	filter := bson.M{"_id": objectID, "is_deleted": 0}
 	admin := &models.Admin{}
-	err = r.collection.FindOne(ctx, filter).Decode(admin)
+	err = collection.FindOne(ctx, filter).Decode(admin)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
@@ -116,9 +125,10 @@ func (r *adminRepository) Get(ctx context.Context, id string) (*models.Admin, er
 
 // GetByPhone 根据手机号获取单条记录（排除软删除）
 func (r *adminRepository) GetByPhone(ctx context.Context, phone string) (*models.Admin, error) {
+	collection := r.getCollection(ctx)
 	filter := bson.M{"phone": phone, "is_deleted": 0}
 	admin := &models.Admin{}
-	err := r.collection.FindOne(ctx, filter).Decode(admin)
+	err := collection.FindOne(ctx, filter).Decode(admin)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
@@ -130,9 +140,10 @@ func (r *adminRepository) GetByPhone(ctx context.Context, phone string) (*models
 
 // GetByEmail 根据邮箱获取单条记录（排除软删除）
 func (r *adminRepository) GetByEmail(ctx context.Context, email string) (*models.Admin, error) {
+	collection := r.getCollection(ctx)
 	filter := bson.M{"email": email, "is_deleted": 0}
 	admin := &models.Admin{}
-	err := r.collection.FindOne(ctx, filter).Decode(admin)
+	err := collection.FindOne(ctx, filter).Decode(admin)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
@@ -144,7 +155,8 @@ func (r *adminRepository) GetByEmail(ctx context.Context, email string) (*models
 
 // Find 查询记录列表
 func (r *adminRepository) Find(ctx context.Context, filter bson.M) ([]*models.Admin, error) {
-	cursor, err := r.collection.Find(ctx, filter)
+	collection := r.getCollection(ctx)
+	cursor, err := collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -160,8 +172,9 @@ func (r *adminRepository) Find(ctx context.Context, filter bson.M) ([]*models.Ad
 
 // FindOne 查询单条记录
 func (r *adminRepository) FindOne(ctx context.Context, filter bson.M) (*models.Admin, error) {
+	collection := r.getCollection(ctx)
 	admin := &models.Admin{}
-	err := r.collection.FindOne(ctx, filter).Decode(admin)
+	err := collection.FindOne(ctx, filter).Decode(admin)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil
@@ -173,8 +186,9 @@ func (r *adminRepository) FindOne(ctx context.Context, filter bson.M) (*models.A
 
 // FindWithPage 分页查询记录列表（按创建时间倒序）
 func (r *adminRepository) FindWithPage(ctx context.Context, filter bson.M, page, pageSize int64) ([]*models.Admin, error) {
+	collection := r.getCollection(ctx)
 	// 简化实现，不使用 options，让 service 层处理分页逻辑
-	cursor, err := r.collection.Find(ctx, filter)
+	cursor, err := collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +204,8 @@ func (r *adminRepository) FindWithPage(ctx context.Context, filter bson.M, page,
 
 // Count 统计记录数
 func (r *adminRepository) Count(ctx context.Context, filter bson.M) (int64, error) {
-	count, err := r.collection.CountDocuments(ctx, filter)
+	collection := r.getCollection(ctx)
+	count, err := collection.CountDocuments(ctx, filter)
 	if err != nil {
 		return 0, err
 	}
@@ -199,7 +214,8 @@ func (r *adminRepository) Count(ctx context.Context, filter bson.M) (int64, erro
 
 // Create 创建记录
 func (r *adminRepository) Create(ctx context.Context, admin *models.Admin) error {
-	result, err := r.collection.InsertOne(ctx, admin)
+	collection := r.getCollection(ctx)
+	result, err := collection.InsertOne(ctx, admin)
 	if err != nil {
 		return err
 	}
@@ -214,13 +230,14 @@ func (r *adminRepository) Create(ctx context.Context, admin *models.Admin) error
 
 // Update 更新记录
 func (r *adminRepository) Update(ctx context.Context, id string, update bson.M) error {
+	collection := r.getCollection(ctx)
 	// 将字符串 ID 转换为 ObjectID 进行更新
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		// 如果转换失败，尝试直接用字符串更新（兼容旧数据）
 		filter := bson.M{"_id": id}
 		updateDoc := bson.M{"$set": update}
-		result, err := r.collection.UpdateOne(ctx, filter, updateDoc)
+		result, err := collection.UpdateOne(ctx, filter, updateDoc)
 		if err != nil {
 			return err
 		}
@@ -233,7 +250,7 @@ func (r *adminRepository) Update(ctx context.Context, id string, update bson.M) 
 	// 使用 ObjectID 更新
 	filter := bson.M{"_id": objectID}
 	updateDoc := bson.M{"$set": update}
-	result, err := r.collection.UpdateOne(ctx, filter, updateDoc)
+	result, err := collection.UpdateOne(ctx, filter, updateDoc)
 	if err != nil {
 		return err
 	}
@@ -248,20 +265,22 @@ func (r *adminRepository) Update(ctx context.Context, id string, update bson.M) 
 
 // UpdateOne 按条件更新单条记录
 func (r *adminRepository) UpdateOne(ctx context.Context, filter bson.M, update bson.M) error {
+	collection := r.getCollection(ctx)
 	updateDoc := bson.M{"$set": update}
-	_, err := r.collection.UpdateOne(ctx, filter, updateDoc)
+	_, err := collection.UpdateOne(ctx, filter, updateDoc)
 	return err
 }
 
 // Delete 软删除记录（设置 is_deleted = 1）
 func (r *adminRepository) Delete(ctx context.Context, id string) error {
+	collection := r.getCollection(ctx)
 	// 将字符串 ID 转换为 ObjectID 进行删除
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		// 如果转换失败，尝试直接用字符串删除（兼容旧数据）
 		filter := bson.M{"_id": id, "is_deleted": 0}
 		updateDoc := bson.M{"$set": bson.M{"is_deleted": 1, "deleted_at": time.Now().Unix()}}
-		result, err := r.collection.UpdateOne(ctx, filter, updateDoc)
+		result, err := collection.UpdateOne(ctx, filter, updateDoc)
 		if err != nil {
 			return err
 		}
@@ -274,7 +293,7 @@ func (r *adminRepository) Delete(ctx context.Context, id string) error {
 	// 使用 ObjectID 软删除
 	filter := bson.M{"_id": objectID, "is_deleted": 0}
 	updateDoc := bson.M{"$set": bson.M{"is_deleted": 1, "deleted_at": time.Now().Unix()}}
-	result, err := r.collection.UpdateOne(ctx, filter, updateDoc)
+	result, err := collection.UpdateOne(ctx, filter, updateDoc)
 	if err != nil {
 		return err
 	}
@@ -289,12 +308,13 @@ func (r *adminRepository) Delete(ctx context.Context, id string) error {
 
 // HardDelete 物理删除记录（真正从数据库删除）
 func (r *adminRepository) HardDelete(ctx context.Context, id string) error {
+	collection := r.getCollection(ctx)
 	// 将字符串 ID 转换为 ObjectID 进行删除
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		// 如果转换失败，尝试直接用字符串删除（兼容旧数据）
 		filter := bson.M{"_id": id}
-		result, err := r.collection.DeleteOne(ctx, filter)
+		result, err := collection.DeleteOne(ctx, filter)
 		if err != nil {
 			return err
 		}
@@ -306,7 +326,7 @@ func (r *adminRepository) HardDelete(ctx context.Context, id string) error {
 
 	// 使用 ObjectID 物理删除
 	filter := bson.M{"_id": objectID}
-	result, err := r.collection.DeleteOne(ctx, filter)
+	result, err := collection.DeleteOne(ctx, filter)
 	if err != nil {
 		return err
 	}
@@ -321,7 +341,8 @@ func (r *adminRepository) HardDelete(ctx context.Context, id string) error {
 
 // DeleteMany 批量删除
 func (r *adminRepository) DeleteMany(ctx context.Context, filter bson.M) (int64, error) {
-	result, err := r.collection.DeleteMany(ctx, filter)
+	collection := r.getCollection(ctx)
+	result, err := collection.DeleteMany(ctx, filter)
 	if err != nil {
 		return 0, err
 	}
@@ -330,11 +351,12 @@ func (r *adminRepository) DeleteMany(ctx context.Context, filter bson.M) (int64,
 
 // FindDeletedWithPage 分页查询已删除记录列表（按删除时间倒序）
 func (r *adminRepository) FindDeletedWithPage(ctx context.Context, filter bson.M, page, pageSize int64) ([]*models.Admin, error) {
+	collection := r.getCollection(ctx)
 	// 添加已删除条件
 	filter["is_deleted"] = 1
 
 	// 简化实现，不使用 options，让 service 层处理分页逻辑
-	cursor, err := r.collection.Find(ctx, filter)
+	cursor, err := collection.Find(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -350,8 +372,9 @@ func (r *adminRepository) FindDeletedWithPage(ctx context.Context, filter bson.M
 
 // CountDeleted 统计已删除记录数
 func (r *adminRepository) CountDeleted(ctx context.Context, filter bson.M) (int64, error) {
+	collection := r.getCollection(ctx)
 	filter["is_deleted"] = 1
-	count, err := r.collection.CountDocuments(ctx, filter)
+	count, err := collection.CountDocuments(ctx, filter)
 	if err != nil {
 		return 0, err
 	}
@@ -360,13 +383,14 @@ func (r *adminRepository) CountDeleted(ctx context.Context, filter bson.M) (int6
 
 // RestoreOne 恢复单条记录（清除 is_deleted 和 deleted_at）
 func (r *adminRepository) RestoreOne(ctx context.Context, id string) error {
+	collection := r.getCollection(ctx)
 	// 将字符串 ID 转换为 ObjectID 进行恢复
 	objectID, err := bson.ObjectIDFromHex(id)
 	if err != nil {
 		// 如果转换失败，尝试直接用字符串恢复（兼容旧数据）
 		filter := bson.M{"_id": id, "is_deleted": 1}
 		updateDoc := bson.M{"$set": bson.M{"is_deleted": 0, "deleted_at": 0}}
-		result, err := r.collection.UpdateOne(ctx, filter, updateDoc)
+		result, err := collection.UpdateOne(ctx, filter, updateDoc)
 		if err != nil {
 			return err
 		}
@@ -379,7 +403,7 @@ func (r *adminRepository) RestoreOne(ctx context.Context, id string) error {
 	// 使用 ObjectID 恢复
 	filter := bson.M{"_id": objectID, "is_deleted": 1}
 	updateDoc := bson.M{"$set": bson.M{"is_deleted": 0, "deleted_at": 0}}
-	result, err := r.collection.UpdateOne(ctx, filter, updateDoc)
+	result, err := collection.UpdateOne(ctx, filter, updateDoc)
 	if err != nil {
 		return err
 	}
@@ -394,6 +418,7 @@ func (r *adminRepository) RestoreOne(ctx context.Context, id string) error {
 
 // RestoreMany 批量恢复记录
 func (r *adminRepository) RestoreMany(ctx context.Context, ids []string) (int64, error) {
+	collection := r.getCollection(ctx)
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -416,7 +441,7 @@ func (r *adminRepository) RestoreMany(ctx context.Context, ids []string) (int64,
 	if len(objectIDs) > 0 {
 		filter := bson.M{"_id": bson.M{"$in": objectIDs}, "is_deleted": 1}
 		updateDoc := bson.M{"$set": bson.M{"is_deleted": 0, "deleted_at": 0}}
-		result, err := r.collection.UpdateMany(ctx, filter, updateDoc)
+		result, err := collection.UpdateMany(ctx, filter, updateDoc)
 		if err != nil {
 			return 0, err
 		}
@@ -427,7 +452,7 @@ func (r *adminRepository) RestoreMany(ctx context.Context, ids []string) (int64,
 	if len(stringIDs) > 0 {
 		filter := bson.M{"_id": bson.M{"$in": stringIDs}, "is_deleted": 1}
 		updateDoc := bson.M{"$set": bson.M{"is_deleted": 0, "deleted_at": 0}}
-		result, err := r.collection.UpdateMany(ctx, filter, updateDoc)
+		result, err := collection.UpdateMany(ctx, filter, updateDoc)
 		if err != nil {
 			return totalCount, err
 		}
@@ -439,6 +464,7 @@ func (r *adminRepository) RestoreMany(ctx context.Context, ids []string) (int64,
 
 // HardDeleteMany 批量物理删除记录
 func (r *adminRepository) HardDeleteMany(ctx context.Context, ids []string) (int64, error) {
+	collection := r.getCollection(ctx)
 	if len(ids) == 0 {
 		return 0, nil
 	}
@@ -460,7 +486,7 @@ func (r *adminRepository) HardDeleteMany(ctx context.Context, ids []string) (int
 	// 处理 ObjectID 格式的 ID
 	if len(objectIDs) > 0 {
 		filter := bson.M{"_id": bson.M{"$in": objectIDs}}
-		result, err := r.collection.DeleteMany(ctx, filter)
+		result, err := collection.DeleteMany(ctx, filter)
 		if err != nil {
 			return 0, err
 		}
@@ -470,7 +496,7 @@ func (r *adminRepository) HardDeleteMany(ctx context.Context, ids []string) (int
 	// 处理字符串格式的 ID（兼容旧数据）
 	if len(stringIDs) > 0 {
 		filter := bson.M{"_id": bson.M{"$in": stringIDs}}
-		result, err := r.collection.DeleteMany(ctx, filter)
+		result, err := collection.DeleteMany(ctx, filter)
 		if err != nil {
 			return totalCount, err
 		}
@@ -481,6 +507,9 @@ func (r *adminRepository) HardDeleteMany(ctx context.Context, ids []string) (int
 }
 
 // GetCollection 获取MongoDB集合（供高级用法使用，如需要使用 options）
+// 注意：此方法需要从Context获取租户ID，建议传入Context
 func (r *adminRepository) GetCollection() *mongo.Collection {
-	return r.collection
+	// 返回系统库的collection作为默认值（向下兼容）
+	// 实际使用时应该调用 getCollection(ctx)
+	return r.dbManager.GetSystemDatabase().Collection("admin")
 }

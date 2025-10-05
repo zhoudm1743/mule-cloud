@@ -15,6 +15,7 @@ import {
   UserCenter,
 } from './components'
 import Content from './Content.vue'
+import TenantSelector from '@/components/TenantSelector.vue'
 import { ProLayout, useLayoutMenu } from 'pro-naive-ui'
 
 const route = useRoute()
@@ -106,6 +107,7 @@ const hidenCollapaseButton = computed(() => ['horizontal'].includes(layoutMode.v
 
         <!-- 桌面端：显示完整功能组件 -->
         <template v-else>
+          <TenantSelector />
           <Search />
           <Notices />
           <FullScreen />

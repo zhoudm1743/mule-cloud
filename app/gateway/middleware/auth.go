@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	tenantCtx "mule-cloud/core/context"
 	"mule-cloud/core/jwt"
 	"mule-cloud/core/response"
 	"strings"
@@ -37,12 +38,21 @@ func JWTAuth(jwtManager *jwt.JWTManager) gin.HandlerFunc {
 			return
 		}
 
-		// 将用户信息存入Context
+		// 将用户信息存入Gin Context（保持向下兼容）
 		c.Set("user_id", claims.UserID)
 		c.Set("username", claims.Username)
-		c.Set("tenant_id", claims.TenantID)
+		c.Set("tenant_id", claims.TenantID)     // 保留 ID（兼容）
+		c.Set("tenant_code", claims.TenantCode) // ✅ 新增：租户代码
 		c.Set("roles", claims.Roles)
 		c.Set("claims", claims)
+
+		// ✅ 将租户信息存入标准Context（使用 TenantCode）
+		ctx := c.Request.Context()
+		ctx = tenantCtx.WithTenantCode(ctx, claims.TenantCode)
+		ctx = tenantCtx.WithUserID(ctx, claims.UserID)
+		ctx = tenantCtx.WithUsername(ctx, claims.Username)
+		ctx = tenantCtx.WithRoles(ctx, claims.Roles)
+		c.Request = c.Request.WithContext(ctx)
 
 		c.Next()
 	}
@@ -84,9 +94,18 @@ func OptionalAuth(jwtManager *jwt.JWTManager) gin.HandlerFunc {
 			if err == nil {
 				c.Set("user_id", claims.UserID)
 				c.Set("username", claims.Username)
-				c.Set("tenant_id", claims.TenantID)
+				c.Set("tenant_id", claims.TenantID)     // 保留 ID（兼容）
+				c.Set("tenant_code", claims.TenantCode) // ✅ 新增：租户代码
 				c.Set("roles", claims.Roles)
 				c.Set("claims", claims)
+
+				// ✅ 将租户信息存入标准Context（使用 TenantCode）
+				ctx := c.Request.Context()
+				ctx = tenantCtx.WithTenantCode(ctx, claims.TenantCode)
+				ctx = tenantCtx.WithUserID(ctx, claims.UserID)
+				ctx = tenantCtx.WithUsername(ctx, claims.Username)
+				ctx = tenantCtx.WithRoles(ctx, claims.Roles)
+				c.Request = c.Request.WithContext(ctx)
 			}
 		}
 
