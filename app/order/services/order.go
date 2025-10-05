@@ -200,6 +200,11 @@ func (s *OrderService) UpdateStyle(ctx context.Context, req dto.OrderStyleReques
 
 // UpdateProcedure 更新订单工序（步骤3）
 func (s *OrderService) UpdateProcedure(ctx context.Context, req dto.OrderProcedureRequest) (*models.Order, error) {
+	// 验证工序
+	if err := ValidateOrderProcedures(req.Procedures); err != nil {
+		return nil, err
+	}
+	
 	update := bson.M{
 		"procedures": req.Procedures,
 		"status":     1, // 已下单
@@ -271,6 +276,10 @@ func (s *OrderService) Update(ctx context.Context, req dto.OrderUpdateRequest) (
 		update["items"] = req.Items
 	}
 	if len(req.Procedures) > 0 {
+		// 验证工序
+		if err := ValidateOrderProcedures(req.Procedures); err != nil {
+			return nil, err
+		}
 		update["procedures"] = req.Procedures
 	}
 	

@@ -143,6 +143,16 @@ function moveProcedureDown(index: number) {
 
 async function handleSubmit() {
   await formRef.value?.validate()
+  
+  // 验证工序：至少有一个最终工序
+  if (formModel.procedures && formModel.procedures.length > 0) {
+    const hasFinalProcedure = formModel.procedures.some(proc => proc.is_slowest)
+    if (!hasFinalProcedure) {
+      window.$message.error('必须至少选择一个最终工序')
+      return
+    }
+  }
+  
   loadingSubmit.value = true
 
   try {
@@ -217,7 +227,14 @@ const procedureColumns = computed<any>(() => [
         disabled: modalType.value === 'view',
         'onUpdate:checked': (value: boolean) => {
           if (formModel.procedures && formModel.procedures[index]) {
-            formModel.procedures[index].is_slowest = value
+            // 如果选中，取消其他工序的最终工序标记
+            if (value) {
+              formModel.procedures.forEach((proc, idx) => {
+                proc.is_slowest = idx === index
+              })
+            } else {
+              formModel.procedures[index].is_slowest = false
+            }
           }
         },
       })

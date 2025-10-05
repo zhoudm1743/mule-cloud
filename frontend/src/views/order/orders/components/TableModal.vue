@@ -254,6 +254,15 @@ async function handleStep2() {
 
 // 步骤3：保存工序
 async function handleStep3() {
+  // 验证工序：至少有一个最终工序
+  if (formModel.procedures && formModel.procedures.length > 0) {
+    const hasFinalProcedure = formModel.procedures.some(proc => proc.is_slowest)
+    if (!hasFinalProcedure) {
+      window.$message.error('必须至少选择一个最终工序')
+      return
+    }
+  }
+  
   loadingSubmit.value = true
   try {
     await updateOrderProcedure(formModel.id, {
@@ -275,6 +284,16 @@ async function handleStep3() {
 // 编辑模式的保存
 async function handleEditSubmit() {
   await formRef.value?.validate()
+  
+  // 验证工序：至少有一个最终工序
+  if (formModel.procedures && formModel.procedures.length > 0) {
+    const hasFinalProcedure = formModel.procedures.some(proc => proc.is_slowest)
+    if (!hasFinalProcedure) {
+      window.$message.error('必须至少选择一个最终工序')
+      return
+    }
+  }
+  
   loadingSubmit.value = true
 
   try {
@@ -375,7 +394,14 @@ const procedureColumns = computed(() => [
         checked: formModel.procedures[index].is_slowest,
         disabled: modalType.value === 'view',
         'onUpdate:checked': (value: boolean) => {
-          formModel.procedures[index].is_slowest = value
+          // 如果选中，取消其他工序的最终工序标记
+          if (value) {
+            formModel.procedures.forEach((proc, idx) => {
+              proc.is_slowest = idx === index
+            })
+          } else {
+            formModel.procedures[index].is_slowest = false
+          }
         },
       })
     },

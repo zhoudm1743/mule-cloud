@@ -135,6 +135,13 @@ func (s *StyleService) List(ctx context.Context, req dto.StyleListRequest) ([]mo
 
 // Create 创建款式
 func (s *StyleService) Create(ctx context.Context, req dto.StyleCreateRequest) (*models.Style, error) {
+	// 验证工序
+	if len(req.Procedures) > 0 {
+		if err := ValidateStyleProcedures(req.Procedures); err != nil {
+			return nil, err
+		}
+	}
+	
 	now := time.Now().Unix()
 	
 	style := &models.Style{
@@ -194,6 +201,10 @@ func (s *StyleService) Update(ctx context.Context, req dto.StyleUpdateRequest) (
 		update["remark"] = req.Remark
 	}
 	if len(req.Procedures) > 0 {
+		// 验证工序
+		if err := ValidateStyleProcedures(req.Procedures); err != nil {
+			return nil, err
+		}
 		update["procedures"] = req.Procedures
 	}
 	if req.Status >= 0 {
