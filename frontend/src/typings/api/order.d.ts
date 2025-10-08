@@ -301,6 +301,28 @@ namespace Api {
       created_by?: string
     }
 
+    /* 批次项（批量创建时使用） */
+    interface BatchItem {
+      bundle_no: string
+      color: string
+      layer_count: number
+      size_details: SizeDetail[]
+    }
+
+    /* 批量创建裁剪批次请求 */
+    interface BulkCreateCuttingBatchRequest {
+      task_id: string
+      bed_no: string
+      batches: BatchItem[]
+      created_by?: string
+    }
+
+    /* 批量创建裁剪批次响应 */
+    interface BulkCreateCuttingBatchResponse {
+      batches: CuttingBatchInfo[]
+      count: number
+    }
+
     /* 裁剪批次列表请求 */
     interface CuttingBatchListRequest {
       page?: number
@@ -320,6 +342,12 @@ namespace Api {
     /* 裁剪批次详情响应 */
     interface CuttingBatchResponse {
       batch: CuttingBatchInfo
+    }
+
+    /* 批量打印响应 */
+    interface BatchPrintResponse {
+      batches: CuttingBatchInfo[]
+      count: number
     }
 
     /* 裁片监控列表请求 */

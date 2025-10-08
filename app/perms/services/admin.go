@@ -14,13 +14,12 @@ import (
 
 // IAdminService 管理员服务接口
 type IAdminService interface {
-	Get(id string) (*models.Admin, error)
-	GetAll(req dto.AdminListRequest) ([]models.Admin, error)
-	List(req dto.AdminListRequest) ([]models.Admin, int64, error)
-	Create(req dto.AdminCreateRequest) (*models.Admin, error)
-	CreateWithContext(ctx context.Context, req dto.AdminCreateRequest) (*models.Admin, error)
-	Update(req dto.AdminUpdateRequest) (*models.Admin, error)
-	Delete(id string) error
+	Get(ctx context.Context, id string) (*models.Admin, error)
+	GetAll(ctx context.Context, req dto.AdminListRequest) ([]models.Admin, error)
+	List(ctx context.Context, req dto.AdminListRequest) ([]models.Admin, int64, error)
+	Create(ctx context.Context, req dto.AdminCreateRequest) (*models.Admin, error)
+	Update(ctx context.Context, req dto.AdminUpdateRequest) (*models.Admin, error)
+	Delete(ctx context.Context, id string) error
 }
 
 // AdminService 管理员服务实现
@@ -35,15 +34,12 @@ func NewAdminService() IAdminService {
 }
 
 // Get 获取管理员
-func (s *AdminService) Get(id string) (*models.Admin, error) {
-	ctx := context.Background()
+func (s *AdminService) Get(ctx context.Context, id string) (*models.Admin, error) {
 	return s.repo.Get(ctx, id)
 }
 
 // List 列表（分页查询）
-func (s *AdminService) List(req dto.AdminListRequest) ([]models.Admin, int64, error) {
-	ctx := context.Background()
-
+func (s *AdminService) List(ctx context.Context, req dto.AdminListRequest) ([]models.Admin, int64, error) {
 	// 构建过滤条件（排除软删除）
 	filter := bson.M{"is_deleted": 0}
 	if req.Phone != "" {
@@ -76,8 +72,8 @@ func (s *AdminService) List(req dto.AdminListRequest) ([]models.Admin, int64, er
 		SetLimit(req.PageSize).
 		SetSort(bson.M{"created_at": -1})
 
-	// 使用 GetCollection 获取原始集合以使用 options
-	collection := s.repo.GetCollection()
+	// 使用 GetCollectionWithContext 获取正确的租户数据库集合
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, err
@@ -94,9 +90,7 @@ func (s *AdminService) List(req dto.AdminListRequest) ([]models.Admin, int64, er
 }
 
 // GetAll 获取所有管理员（不分页）
-func (s *AdminService) GetAll(req dto.AdminListRequest) ([]models.Admin, error) {
-	ctx := context.Background()
-
+func (s *AdminService) GetAll(ctx context.Context, req dto.AdminListRequest) ([]models.Admin, error) {
 	// 构建过滤条件（排除软删除）
 	filter := bson.M{"is_deleted": 0}
 	if req.Phone != "" {
@@ -116,9 +110,9 @@ func (s *AdminService) GetAll(req dto.AdminListRequest) ([]models.Admin, error) 
 		filter["_id"] = req.ID
 	}
 
-	// 使用 GetCollection 获取原始集合以使用排序选项
+	// 使用 GetCollectionWithContext 获取正确的租户数据库集合
 	opts := options.Find().SetSort(bson.M{"created_at": -1})
-	collection := s.repo.GetCollection()
+	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, err
@@ -135,12 +129,7 @@ func (s *AdminService) GetAll(req dto.AdminListRequest) ([]models.Admin, error) 
 }
 
 // Create 创建管理员
-func (s *AdminService) Create(req dto.AdminCreateRequest) (*models.Admin, error) {
-	return s.CreateWithContext(context.Background(), req)
-}
-
-// CreateWithContext 使用指定Context创建管理员（支持租户隔离）
-func (s *AdminService) CreateWithContext(ctx context.Context, req dto.AdminCreateRequest) (*models.Admin, error) {
+func (s *AdminService) Create(ctx context.Context, req dto.AdminCreateRequest) (*models.Admin, error) {
 	now := time.Now().Unix()
 	password := util.ToolsUtil.Md5(req.Password + "mule-zdm")
 
@@ -166,9 +155,7 @@ func (s *AdminService) CreateWithContext(ctx context.Context, req dto.AdminCreat
 }
 
 // Update 更新管理员
-func (s *AdminService) Update(req dto.AdminUpdateRequest) (*models.Admin, error) {
-	ctx := context.Background()
-
+func (s *AdminService) Update(ctx context.Context, req dto.AdminUpdateRequest) (*models.Admin, error) {
 	// 更新字段
 	update := bson.M{
 		"updated_at": time.Now().Unix(),
@@ -206,8 +193,7 @@ func (s *AdminService) Update(req dto.AdminUpdateRequest) (*models.Admin, error)
 }
 
 // Delete 删除管理员
-func (s *AdminService) Delete(id string) error {
-	ctx := context.Background()
+func (s *AdminService) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
 

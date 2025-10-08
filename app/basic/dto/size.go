@@ -4,7 +4,7 @@ import "mule-cloud/internal/models"
 
 // SizeRequest 尺寸请求
 type SizeGetRequest struct {
-	ID string `uri:"id" binding:"required"`
+	ID string `uri:"id" binding"required"`
 }
 
 type SizeListRequest struct {
@@ -15,13 +15,13 @@ type SizeListRequest struct {
 }
 
 type SizeCreateRequest struct {
-	Value  string `json:"value" binding:"required"`
+	Value  string `json:"value" binding"required"`
 	Remark string `json:"remark"`
 }
 
 type SizeUpdateRequest struct {
 	ID     string `uri:"id"`
-	Value  string `json:"value" binding:"required"`
+	Value  string `json:"value" binding"required"`
 	Remark string `json:"remark"`
 }
 

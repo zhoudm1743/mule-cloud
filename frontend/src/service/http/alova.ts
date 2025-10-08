@@ -71,13 +71,12 @@ export function createAlovaInstance(
         method.data = new URLSearchParams(method.data as URLSearchParams).toString()
       }
       
-      // ✅ 系统管理员：添加租户上下文 header（如果已选择租户）
-      const userInfo = local.get('userInfo')
-      const selectedTenantId = local.get('selected_tenant_id')
-      
-      if (userInfo && !userInfo.tenant_id && selectedTenantId) {
-        // 系统管理员 + 已选择租户 = 添加租户上下文 header
-        method.config.headers['X-Tenant-Context'] = selectedTenantId
+      // ✅ 添加租户上下文 header（如果已选择租户）
+      // 后端的 TenantContextMiddleware 会验证用户是否有权限切换租户
+      // 这样可以避免前端时序问题（userInfo 可能还未从 localStorage 恢复）
+      const selectedTenantCode = local.get('selected_tenant_code')
+      if (selectedTenantCode) {
+        method.config.headers['X-Tenant-Context'] = selectedTenantCode
       }
       
       alovaConfig.beforeRequest?.(method)

@@ -35,8 +35,8 @@ func NewOrderRepository() OrderRepository {
 
 // GetCollectionWithContext 获取集合（支持租户上下文）
 func (r *orderRepository) GetCollectionWithContext(ctx context.Context) *mongo.Collection {
-	tenantID := tenantCtx.GetTenantID(ctx)
-	db := r.dbManager.GetDatabase(tenantID)
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	db := r.dbManager.GetDatabase(tenantCode)
 	return db.Collection(models.Order{}.TableName())
 }
 
@@ -44,8 +44,14 @@ func (r *orderRepository) GetCollectionWithContext(ctx context.Context) *mongo.C
 func (r *orderRepository) Get(ctx context.Context, id string) (*models.Order, error) {
 	collection := r.GetCollectionWithContext(ctx)
 
+	// 将字符串 ID 转换为 ObjectID
+	objectID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
 	var order models.Order
-	err := collection.FindOne(ctx, bson.M{"_id": id, "is_deleted": 0}).Decode(&order)
+	err = collection.FindOne(ctx, bson.M{"_id": objectID, "is_deleted": 0}).Decode(&order)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, ErrNotFound
@@ -81,7 +87,10 @@ func (r *orderRepository) Create(ctx context.Context, order *models.Order) error
 		return err
 	}
 
-	order.ID = result.InsertedID.(string)
+	// 将 bson.ObjectID 转换为字符串
+	if oid, ok := result.InsertedID.(bson.ObjectID); ok {
+		order.ID = oid.Hex()
+	}
 	return nil
 }
 
@@ -89,9 +98,15 @@ func (r *orderRepository) Create(ctx context.Context, order *models.Order) error
 func (r *orderRepository) Update(ctx context.Context, id string, update bson.M) error {
 	collection := r.GetCollectionWithContext(ctx)
 
-	_, err := collection.UpdateOne(
+	// 将字符串 ID 转换为 ObjectID
+	objectID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+
+	_, err = collection.UpdateOne(
 		ctx,
-		bson.M{"_id": id, "is_deleted": 0},
+		bson.M{"_id": objectID, "is_deleted": 0},
 		bson.M{"$set": update},
 	)
 
@@ -102,10 +117,16 @@ func (r *orderRepository) Update(ctx context.Context, id string, update bson.M) 
 func (r *orderRepository) Delete(ctx context.Context, id string) error {
 	collection := r.GetCollectionWithContext(ctx)
 
+	// 将字符串 ID 转换为 ObjectID
+	objectID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return err
+	}
+
 	now := time.Now().Unix()
-	_, err := collection.UpdateOne(
+	_, err = collection.UpdateOne(
 		ctx,
-		bson.M{"_id": id},
+		bson.M{"_id": objectID},
 		bson.M{"$set": bson.M{"is_deleted": 1, "deleted_at": now}},
 	)
 

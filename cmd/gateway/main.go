@@ -237,6 +237,13 @@ func (gw *Gateway) proxyHandler() gin.HandlerFunc {
 				c.Request.Header.Set("X-Roles", strings.Join(roles, ","))
 			}
 		}
+		
+		// ✅ 重要：转发前端发送的 X-Tenant-Context header（用于超管切换租户）
+		// 这个 header 是前端直接发送的，不在 JWT token 中，需要单独转发
+		if contextTenant := c.GetHeader("X-Tenant-Context"); contextTenant != "" {
+			c.Request.Header.Set("X-Tenant-Context", contextTenant)
+			log.Printf("[网关转发] 转发租户上下文: %s", contextTenant)
+		}
 
 		c.Request.Host = target.Host
 

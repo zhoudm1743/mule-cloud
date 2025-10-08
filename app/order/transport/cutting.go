@@ -4,6 +4,7 @@ import (
 	"mule-cloud/app/order/dto"
 	"mule-cloud/app/order/endpoint"
 	"mule-cloud/app/order/services"
+	"mule-cloud/core/binding"
 	"mule-cloud/core/response"
 
 	"github.com/gin-gonic/gin"
@@ -15,7 +16,7 @@ import (
 func CreateCuttingTaskHandler(svc services.ICuttingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.CuttingTaskCreateRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -35,7 +36,7 @@ func CreateCuttingTaskHandler(svc services.ICuttingService) gin.HandlerFunc {
 func ListCuttingTasksHandler(svc services.ICuttingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.CuttingTaskListRequest
-		if err := c.ShouldBind(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -97,7 +98,7 @@ func GetCuttingTaskByOrderHandler(svc services.ICuttingService) gin.HandlerFunc 
 func CreateCuttingBatchHandler(svc services.ICuttingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.CuttingBatchCreateRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -113,11 +114,31 @@ func CreateCuttingBatchHandler(svc services.ICuttingService) gin.HandlerFunc {
 	}
 }
 
+// BulkCreateCuttingBatchHandler 批量创建裁剪批次处理器
+func BulkCreateCuttingBatchHandler(svc services.ICuttingService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.CuttingBatchBulkCreateRequest
+		if err := binding.BindAll(c, &req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		ep := endpoint.BulkCreateCuttingBatchEndpoint(svc)
+		resp, err := ep(c.Request.Context(), req)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}
+
 // ListCuttingBatchesHandler 裁剪批次列表处理器
 func ListCuttingBatchesHandler(svc services.ICuttingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.CuttingBatchListRequest
-		if err := c.ShouldBind(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -193,13 +214,33 @@ func PrintCuttingBatchHandler(svc services.ICuttingService) gin.HandlerFunc {
 	}
 }
 
+// BatchPrintCuttingBatchesHandler 批量打印裁剪批次处理器
+func BatchPrintCuttingBatchesHandler(svc services.ICuttingService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.BatchPrintRequest
+		if err := c.ShouldBindJSON(&req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		ep := endpoint.BatchPrintCuttingBatchesEndpoint(svc)
+		resp, err := ep(c.Request.Context(), req)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}
+
 // ==================== 裁片监控 Handlers ====================
 
 // ListCuttingPiecesHandler 裁片监控列表处理器
 func ListCuttingPiecesHandler(svc services.ICuttingService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.CuttingPieceListRequest
-		if err := c.ShouldBind(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -245,7 +286,7 @@ func UpdateCuttingPieceProgressHandler(svc services.ICuttingService) gin.Handler
 		}
 
 		var req dto.CuttingPieceProgressRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}

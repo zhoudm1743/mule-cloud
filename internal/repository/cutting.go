@@ -16,7 +16,9 @@ import (
 type CuttingTaskRepository interface {
 	Create(ctx context.Context, task *models.CuttingTask) error
 	Update(ctx context.Context, id string, task *models.CuttingTask) error
+	UpdateByOrderID(ctx context.Context, orderID string, update bson.M) error
 	Delete(ctx context.Context, id string) error
+	DeleteByOrderID(ctx context.Context, orderID string) error
 	GetByID(ctx context.Context, id string) (*models.CuttingTask, error)
 	GetByOrderID(ctx context.Context, orderID string) (*models.CuttingTask, error)
 	List(ctx context.Context, page, pageSize int, contractNo, styleNo string, status *int) ([]*models.CuttingTask, int64, error)
@@ -26,7 +28,9 @@ type CuttingTaskRepository interface {
 type CuttingBatchRepository interface {
 	Create(ctx context.Context, batch *models.CuttingBatch) error
 	Update(ctx context.Context, id string, batch *models.CuttingBatch) error
+	UpdateByOrderID(ctx context.Context, orderID string, update bson.M) error
 	Delete(ctx context.Context, id string) error
+	DeleteByOrderID(ctx context.Context, orderID string) error
 	GetByID(ctx context.Context, id string) (*models.CuttingBatch, error)
 	List(ctx context.Context, page, pageSize int, taskID, contractNo, bedNo, bundleNo string) ([]*models.CuttingBatch, int64, error)
 }
@@ -35,7 +39,9 @@ type CuttingBatchRepository interface {
 type CuttingPieceRepository interface {
 	Create(ctx context.Context, piece *models.CuttingPiece) error
 	Update(ctx context.Context, id string, piece *models.CuttingPiece) error
+	UpdateByOrderID(ctx context.Context, orderID string, update bson.M) error
 	GetByID(ctx context.Context, id string) (*models.CuttingPiece, error)
+	DeleteByOrderID(ctx context.Context, orderID string) error
 	List(ctx context.Context, page, pageSize int, orderID, contractNo, bedNo, bundleNo string) ([]*models.CuttingPiece, int64, error)
 }
 
@@ -52,8 +58,8 @@ func NewCuttingTaskRepository() CuttingTaskRepository {
 }
 
 func (r *cuttingTaskRepository) GetCollectionWithContext(ctx context.Context) *mongo.Collection {
-	tenantID := tenantCtx.GetTenantID(ctx)
-	db := r.dbManager.GetDatabase(tenantID)
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	db := r.dbManager.GetDatabase(tenantCode)
 	return db.Collection(models.CuttingTask{}.TableName())
 }
 
@@ -66,6 +72,18 @@ func (r *cuttingTaskRepository) Create(ctx context.Context, task *models.Cutting
 func (r *cuttingTaskRepository) Update(ctx context.Context, id string, task *models.CuttingTask) error {
 	collection := r.GetCollectionWithContext(ctx)
 	_, err := collection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": task})
+	return err
+}
+
+func (r *cuttingTaskRepository) UpdateByOrderID(ctx context.Context, orderID string, update bson.M) error {
+	collection := r.GetCollectionWithContext(ctx)
+	_, err := collection.UpdateMany(ctx, bson.M{"order_id": orderID, "is_deleted": 0}, bson.M{"$set": update})
+	return err
+}
+
+func (r *cuttingTaskRepository) DeleteByOrderID(ctx context.Context, orderID string) error {
+	collection := r.GetCollectionWithContext(ctx)
+	_, err := collection.UpdateMany(ctx, bson.M{"order_id": orderID}, bson.M{"$set": bson.M{"is_deleted": 1, "deleted_at": time.Now().Unix()}})
 	return err
 }
 
@@ -94,6 +112,9 @@ func (r *cuttingTaskRepository) GetByOrderID(ctx context.Context, orderID string
 	var task models.CuttingTask
 	err := collection.FindOne(ctx, bson.M{"order_id": orderID, "is_deleted": 0}).Decode(&task)
 	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return nil, ErrNotFound
+		}
 		return nil, err
 	}
 	return &task, nil
@@ -149,8 +170,8 @@ func NewCuttingBatchRepository() CuttingBatchRepository {
 }
 
 func (r *cuttingBatchRepository) GetCollectionWithContext(ctx context.Context) *mongo.Collection {
-	tenantID := tenantCtx.GetTenantID(ctx)
-	db := r.dbManager.GetDatabase(tenantID)
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	db := r.dbManager.GetDatabase(tenantCode)
 	return db.Collection(models.CuttingBatch{}.TableName())
 }
 
@@ -163,6 +184,18 @@ func (r *cuttingBatchRepository) Create(ctx context.Context, batch *models.Cutti
 func (r *cuttingBatchRepository) Update(ctx context.Context, id string, batch *models.CuttingBatch) error {
 	collection := r.GetCollectionWithContext(ctx)
 	_, err := collection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": batch})
+	return err
+}
+
+func (r *cuttingBatchRepository) UpdateByOrderID(ctx context.Context, orderID string, update bson.M) error {
+	collection := r.GetCollectionWithContext(ctx)
+	_, err := collection.UpdateMany(ctx, bson.M{"order_id": orderID, "is_deleted": 0}, bson.M{"$set": update})
+	return err
+}
+
+func (r *cuttingBatchRepository) DeleteByOrderID(ctx context.Context, orderID string) error {
+	collection := r.GetCollectionWithContext(ctx)
+	_, err := collection.UpdateMany(ctx, bson.M{"order_id": orderID}, bson.M{"$set": bson.M{"is_deleted": 1}})
 	return err
 }
 
@@ -209,7 +242,11 @@ func (r *cuttingBatchRepository) List(ctx context.Context, page, pageSize int, t
 
 	skip := int64((page - 1) * pageSize)
 	limit := int64(pageSize)
-	opts := options.Find().SetSkip(skip).SetLimit(limit).SetSort(bson.D{{Key: "created_at", Value: -1}})
+	// 排序：先按床号升序，再按扎号降序（扎号从大到小）
+	opts := options.Find().SetSkip(skip).SetLimit(limit).SetSort(bson.D{
+		{Key: "bed_no", Value: 1},     // 床号升序
+		{Key: "bundle_no", Value: -1}, // 扎号降序
+	})
 
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
@@ -238,8 +275,8 @@ func NewCuttingPieceRepository() CuttingPieceRepository {
 }
 
 func (r *cuttingPieceRepository) GetCollectionWithContext(ctx context.Context) *mongo.Collection {
-	tenantID := tenantCtx.GetTenantID(ctx)
-	db := r.dbManager.GetDatabase(tenantID)
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	db := r.dbManager.GetDatabase(tenantCode)
 	return db.Collection(models.CuttingPiece{}.TableName())
 }
 
@@ -252,6 +289,18 @@ func (r *cuttingPieceRepository) Create(ctx context.Context, piece *models.Cutti
 func (r *cuttingPieceRepository) Update(ctx context.Context, id string, piece *models.CuttingPiece) error {
 	collection := r.GetCollectionWithContext(ctx)
 	_, err := collection.UpdateOne(ctx, bson.M{"_id": id}, bson.M{"$set": piece})
+	return err
+}
+
+func (r *cuttingPieceRepository) UpdateByOrderID(ctx context.Context, orderID string, update bson.M) error {
+	collection := r.GetCollectionWithContext(ctx)
+	_, err := collection.UpdateMany(ctx, bson.M{"order_id": orderID}, bson.M{"$set": update})
+	return err
+}
+
+func (r *cuttingPieceRepository) DeleteByOrderID(ctx context.Context, orderID string) error {
+	collection := r.GetCollectionWithContext(ctx)
+	_, err := collection.DeleteMany(ctx, bson.M{"order_id": orderID})
 	return err
 }
 

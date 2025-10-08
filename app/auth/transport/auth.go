@@ -4,6 +4,7 @@ import (
 	"mule-cloud/app/auth/dto"
 	"mule-cloud/app/auth/endpoint"
 	"mule-cloud/app/auth/services"
+	"mule-cloud/core/binding"
 	"mule-cloud/core/response"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,7 @@ import (
 func LoginHandler(svc services.IAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.LoginRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -34,7 +35,7 @@ func LoginHandler(svc services.IAuthService) gin.HandlerFunc {
 func RegisterHandler(svc services.IAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.RegisterRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -54,7 +55,7 @@ func RegisterHandler(svc services.IAuthService) gin.HandlerFunc {
 func RefreshTokenHandler(svc services.IAuthService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.RefreshTokenRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -103,7 +104,7 @@ func UpdateProfileHandler(svc services.IAuthService) gin.HandlerFunc {
 		}
 
 		var req dto.UpdateProfileRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -132,7 +133,7 @@ func ChangePasswordHandler(svc services.IAuthService) gin.HandlerFunc {
 		}
 
 		var req dto.ChangePasswordRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}

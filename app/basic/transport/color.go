@@ -4,6 +4,7 @@ import (
 	"mule-cloud/app/basic/dto"
 	"mule-cloud/app/basic/endpoint"
 	"mule-cloud/app/basic/services"
+	"mule-cloud/core/binding"
 	"mule-cloud/core/response"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,7 @@ import (
 func GetColorHandler(svc services.IColorService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.ColorListRequest
-		if err := c.ShouldBindUri(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -33,7 +34,7 @@ func GetColorHandler(svc services.IColorService) gin.HandlerFunc {
 func GetAllColorsHandler(svc services.IColorService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.ColorListRequest
-		if err := c.ShouldBind(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -53,7 +54,7 @@ func GetAllColorsHandler(svc services.IColorService) gin.HandlerFunc {
 func ListColorsHandler(svc services.IColorService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.ColorListRequest
-		if err := c.ShouldBind(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -73,7 +74,7 @@ func ListColorsHandler(svc services.IColorService) gin.HandlerFunc {
 func CreateColorHandler(svc services.IColorService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.ColorCreateRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -94,16 +95,10 @@ func UpdateColorHandler(svc services.IColorService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.ColorUpdateRequest
 		// 先绑定 JSON body（包含 required 字段）
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
-		// 再绑定 URI 参数（ID）
-		if err := c.ShouldBindUri(&req); err != nil {
-			response.Error(c, "参数错误: "+err.Error())
-			return
-		}
-
 
 		ep := endpoint.UpdateColorEndpoint(svc)
 		resp, err := ep(c.Request.Context(), req)
@@ -120,7 +115,7 @@ func UpdateColorHandler(svc services.IColorService) gin.HandlerFunc {
 func DeleteColorHandler(svc services.IColorService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.ColorListRequest
-		if err := c.ShouldBindUri(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}

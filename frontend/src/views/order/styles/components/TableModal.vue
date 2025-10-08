@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed, h, reactive, ref } from 'vue'
-import { NButton, NCheckbox, NInput, NInputNumber, NSelect, NSpace } from 'naive-ui'
+import { NButton, NCheckbox, NInput, NInputNumber, NSelect, NSpace, NUpload, type UploadFileInfo, NRadioGroup, NRadio } from 'naive-ui'
 import { createStyle, updateStyle } from '@/service/api/order'
 import { fetchAllColors, fetchAllProcedures, fetchAllSizes } from '@/service/api/basic'
+import { uploadFile, deleteFile } from '@/service/api/common'
 import { useBoolean } from '@/hooks'
 
 interface Emits {
@@ -59,6 +60,77 @@ const rules: any = {
 const formRef = ref()
 const loadingSubmit = ref(false)
 
+// 图片上传相关
+const fileList = ref<UploadFileInfo[]>([])
+const uploadLoading = ref(false)
+
+// 自定义图片上传
+async function customUpload({ file, onFinish, onError }: any) {
+  uploadLoading.value = true
+
+  try {
+    // 验证文件大小（10MB）
+    const fileSizeMB = file.file.size / 1024 / 1024
+    if (fileSizeMB > 10) {
+      const error = new Error(`图片大小不能超过10MB`)
+      onError()
+      window.$message?.error(error.message)
+      return
+    }
+
+    // 调用上传API
+    const response = await uploadFile(file.file, 'style')
+
+    // 上传成功，设置文件URL和ID
+    const fileData = response.data  // alova 已经展开了响应，直接访问 data
+    if (fileData) {
+      file.url = fileData.url
+      file.id = fileData.id
+      
+      // 更新formModel中的images数组
+      if (!formModel.images) {
+        formModel.images = []
+      }
+      formModel.images.push(fileData.url)
+      
+      onFinish()
+      window.$message?.success('上传成功')
+    } else {
+      throw new Error('上传响应数据格式错误')
+    }
+  }
+  catch (error: any) {
+    onError()
+    window.$message?.error('上传失败: ' + (error.message || '未知错误'))
+  }
+  finally {
+    uploadLoading.value = false
+  }
+}
+
+// 移除图片
+async function handleRemoveImage({ file }: { file: UploadFileInfo }) {
+  try {
+    // 从图片数组中移除
+    if (file.url && formModel.images) {
+      const index = formModel.images.indexOf(file.url)
+      if (index > -1) {
+        formModel.images.splice(index, 1)
+      }
+    }
+    
+    // 如果有文件ID，调用删除API
+    if (file.id && typeof file.id === 'string' && !file.id.startsWith('existing-')) {
+      await deleteFile(file.id)
+    }
+    
+    window.$message?.success('删除成功')
+  }
+  catch (error: any) {
+    window.$message?.error('删除失败: ' + error.message)
+  }
+}
+
 // 加载基础数据
 async function loadBaseData() {
   try {
@@ -69,12 +141,12 @@ async function loadBaseData() {
     ])
 
     // 直接使用名称作为value，支持快速创建
-    colorOptions.value = (colors.data?.colors || []).map(item => ({ label: item.value, value: item.value }))
-    sizeOptions.value = (sizes.data?.sizes || []).map(item => ({ label: item.value, value: item.value }))
-    procedureOptions.value = (procedures.data?.procedures || []).map(item => ({ label: item.value, value: item.value }))
+    colorOptions.value = (colors.data?.colors || []).map((item: any) => ({ label: item.value, value: item.value }))
+    sizeOptions.value = (sizes.data?.sizes || []).map((item: any) => ({ label: item.value, value: item.value }))
+    procedureOptions.value = (procedures.data?.procedures || []).map((item: any) => ({ label: item.value, value: item.value }))
   }
   catch (error: any) {
-    window.$message.error('加载基础数据失败')
+    window.$message.error('加载基础数据失败: ' + error.message)
   }
 }
 
@@ -84,9 +156,22 @@ function openModal(type: ModalType, data?: Api.Order.StyleInfo) {
   Object.assign(formModel, formDefault())
   loadBaseData()
 
+  // 重置图片列表
+  fileList.value = []
+
   if (type === 'view' || type === 'edit') {
     if (data) {
       Object.assign(formModel, data)
+      
+      // 加载已有图片
+      if (data.images && data.images.length > 0) {
+        fileList.value = data.images.map((url, index) => ({
+          id: `existing-${index}`,
+          name: `图片${index + 1}`,
+          status: 'finished',
+          url,
+        }))
+      }
     }
   }
 }
@@ -196,7 +281,26 @@ async function handleSubmit() {
 // 工序表格列定义
 const procedureColumns = computed<any>(() => [
   { title: '顺序', key: 'sequence', width: 60 },
-  { title: '工序名称', key: 'procedure_name', width: 200 },
+  {
+    title: '工序名称',
+    key: 'procedure_name',
+    width: 200,
+    render: (row: Api.Order.StyleProcedure, index: number) => {
+      return h(NSelect, {
+        value: formModel.procedures?.[index]?.procedure_name || '',
+        disabled: modalType.value === 'view',
+        options: procedureOptions.value,
+        placeholder: '请选择或输入工序',
+        filterable: true,
+        tag: true,  // 支持快速创建
+        'onUpdate:value': (value: string) => {
+          if (formModel.procedures && formModel.procedures[index]) {
+            formModel.procedures[index].procedure_name = value
+          }
+        },
+      })
+    },
+  },
   {
     title: '工价',
     key: 'unit_price',
@@ -294,6 +398,27 @@ defineExpose({ openModal })
             </NFormItemGridItem>
             <NFormItemGridItem path="style_name" label="款名" :span="2">
               <NInput v-model:value="formModel.style_name" :disabled="modalType === 'view'" placeholder="请输入款名" />
+            </NFormItemGridItem>
+            <NFormItemGridItem path="images" label="款式图片" :span="2">
+              <div class="w-full">
+                <NUpload
+                  v-model:file-list="fileList"
+                  :custom-request="customUpload"
+                  :disabled="modalType === 'view'"
+                  accept="image/*"
+                  list-type="image-card"
+                  :max="5"
+                  @remove="handleRemoveImage"
+                >
+                  <NButton v-if="modalType !== 'view'" :loading="uploadLoading" :disabled="uploadLoading">
+                    <template #icon>
+                      <nova-icon icon="carbon:upload" :size="18" />
+                    </template>
+                    点击上传
+                  </NButton>
+                </NUpload>
+                <div class="text-gray-400 text-sm mt-2">支持jpg、png格式，最多5张，每张不超过10MB</div>
+              </div>
             </NFormItemGridItem>
             <NFormItemGridItem path="category" label="分类">
               <NInput v-model:value="formModel.category" :disabled="modalType === 'view'" placeholder="请输入分类" />

@@ -165,16 +165,16 @@ func (s *TenantService) Create(req dto.TenantCreateRequest) (*models.Tenant, err
 
 	// 默认分配租户管理员的菜单（不包含系统级别资源）
 	defaultMenus := []string{
-		"dashboard",  // 仪表盘
-		"perms",      // 系统管理（父菜单）
-		"auth_admin", // 管理员管理（租户内）
-		"auth_role",  // 角色管理（租户内）
+		"dashboard",   // 仪表盘
+		"perms",       // 系统管理（父菜单）
+		"perms_admin", // 管理员管理（租户内）
+		"perms_role",  // 角色管理（租户内）
 	}
 
 	// 默认分配菜单的完整权限（仅租户内资源）
 	defaultMenuPermissions := map[string][]string{
-		"auth_admin": {"read", "create", "update", "delete"},
-		"auth_role":  {"read", "create", "update", "delete", "menus"},
+		"perms_admin": {"read", "create", "update", "delete"},
+		"perms_role":  {"read", "create", "update", "delete", "menus"},
 	}
 
 	adminRole, err := roleService.Create(tenantCtx, &dto.CreateRoleRequest{
@@ -203,7 +203,7 @@ func (s *TenantService) Create(req dto.TenantCreateRequest) (*models.Tenant, err
 		}
 
 		// 使用带Context的创建方法，确保在租户数据库中创建
-		_, err = adminService.CreateWithContext(tenantCtx, dto.AdminCreateRequest{
+		_, err = adminService.Create(tenantCtx, dto.AdminCreateRequest{
 			Phone:    req.AdminPhone,
 			Password: req.AdminPassword,
 			Nickname: nickname,

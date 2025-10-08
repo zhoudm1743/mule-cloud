@@ -89,10 +89,10 @@ func NewRoleRepository() RoleRepository {
 	}
 }
 
-// getCollection 获取集合（自动根据Context中的租户ID切换数据库）
+// getCollection 获取集合（自动根据Context中的租户Code切换数据库）
 func (r *roleRepository) getCollection(ctx context.Context) *mongo.Collection {
-	tenantID := tenantCtx.GetTenantID(ctx)
-	db := r.dbManager.GetDatabase(tenantID)
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	db := r.dbManager.GetDatabase(tenantCode)
 	return db.Collection("role")
 }
 

@@ -4,6 +4,7 @@ import (
 	"mule-cloud/app/basic/dto"
 	"mule-cloud/app/basic/endpoint"
 	"mule-cloud/app/basic/services"
+	"mule-cloud/core/binding"
 	"mule-cloud/core/response"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,7 @@ import (
 func GetSizeHandler(svc services.ISizeService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.SizeGetRequest
-		if err := c.ShouldBindUri(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -33,7 +34,7 @@ func GetSizeHandler(svc services.ISizeService) gin.HandlerFunc {
 func GetAllSizesHandler(svc services.ISizeService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.SizeListRequest
-		if err := c.ShouldBind(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -53,7 +54,7 @@ func GetAllSizesHandler(svc services.ISizeService) gin.HandlerFunc {
 func ListSizesHandler(svc services.ISizeService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.SizeListRequest
-		if err := c.ShouldBind(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -73,7 +74,7 @@ func ListSizesHandler(svc services.ISizeService) gin.HandlerFunc {
 func CreateSizeHandler(svc services.ISizeService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.SizeCreateRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -94,12 +95,7 @@ func UpdateSizeHandler(svc services.ISizeService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.SizeUpdateRequest
 		// 先绑定 JSON body（包含 required 字段）
-		if err := c.ShouldBindJSON(&req); err != nil {
-			response.Error(c, "参数错误: "+err.Error())
-			return
-		}
-		// 再绑定 URI 参数（ID）
-		if err := c.ShouldBindUri(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -119,7 +115,7 @@ func UpdateSizeHandler(svc services.ISizeService) gin.HandlerFunc {
 func DeleteSizeHandler(svc services.ISizeService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.SizeGetRequest
-		if err := c.ShouldBindUri(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}

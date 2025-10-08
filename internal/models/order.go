@@ -25,12 +25,16 @@ type Order struct {
 	Sizes         []string         `json:"sizes" bson:"sizes"`                     // 尺码列表
 	Items         []OrderItem      `json:"items" bson:"items"`                     // 订单明细（颜色+尺码组合）
 	Procedures    []OrderProcedure `json:"procedures" bson:"procedures"`           // 工序清单
-	IsDeleted     int              `json:"is_deleted" bson:"is_deleted"`           // 是否删除：0-否 1-是
-	CreatedBy     string           `json:"created_by" bson:"created_by"`           // 创建人
-	UpdatedBy     string           `json:"updated_by" bson:"updated_by"`           // 更新人
-	CreatedAt     int64            `json:"created_at" bson:"created_at"`           // 创建时间
-	UpdatedAt     int64            `json:"updated_at" bson:"updated_at"`           // 更新时间
-	DeletedAt     int64            `json:"deleted_at" bson:"deleted_at"`           // 删除时间
+	// 订单关联关系
+	ParentOrderID  string `json:"parent_order_id" bson:"parent_order_id"` // 父订单ID（关联的原订单）
+	RelationType   string `json:"relation_type" bson:"relation_type"`     // 关联类型：copy-复制 add-追加
+	RelationRemark string `json:"relation_remark" bson:"relation_remark"` // 关联说明
+	IsDeleted      int    `json:"is_deleted" bson:"is_deleted"`           // 是否删除：0-否 1-是
+	CreatedBy      string `json:"created_by" bson:"created_by"`           // 创建人
+	UpdatedBy      string `json:"updated_by" bson:"updated_by"`           // 更新人
+	CreatedAt      int64  `json:"created_at" bson:"created_at"`           // 创建时间
+	UpdatedAt      int64  `json:"updated_at" bson:"updated_at"`           // 更新时间
+	DeletedAt      int64  `json:"deleted_at" bson:"deleted_at"`           // 删除时间
 }
 
 // OrderItem 订单明细（颜色+尺码组合的数量）

@@ -4,6 +4,7 @@ import (
 	"mule-cloud/app/order/dto"
 	"mule-cloud/app/order/endpoint"
 	"mule-cloud/app/order/services"
+	"mule-cloud/core/binding"
 	"mule-cloud/core/response"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,7 @@ import (
 func GetStyleHandler(svc services.IStyleService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.StyleListRequest
-		if err := c.ShouldBindUri(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -33,7 +34,7 @@ func GetStyleHandler(svc services.IStyleService) gin.HandlerFunc {
 func GetAllStylesHandler(svc services.IStyleService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.StyleListRequest
-		if err := c.ShouldBind(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -53,7 +54,7 @@ func GetAllStylesHandler(svc services.IStyleService) gin.HandlerFunc {
 func ListStylesHandler(svc services.IStyleService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.StyleListRequest
-		if err := c.ShouldBind(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -73,7 +74,7 @@ func ListStylesHandler(svc services.IStyleService) gin.HandlerFunc {
 func CreateStyleHandler(svc services.IStyleService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.StyleCreateRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -93,13 +94,8 @@ func CreateStyleHandler(svc services.IStyleService) gin.HandlerFunc {
 func UpdateStyleHandler(svc services.IStyleService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.StyleUpdateRequest
-		// 先绑定 JSON body
-		if err := c.ShouldBindJSON(&req); err != nil {
-			response.Error(c, "参数错误: "+err.Error())
-			return
-		}
-		// 再绑定 URI 参数（ID）
-		if err := c.ShouldBindUri(&req); err != nil {
+		// 使用统一的绑定方法，自动处理 URI 和 Body 参数
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -119,7 +115,7 @@ func UpdateStyleHandler(svc services.IStyleService) gin.HandlerFunc {
 func DeleteStyleHandler(svc services.IStyleService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.StyleListRequest
-		if err := c.ShouldBindUri(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}

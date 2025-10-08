@@ -1,9 +1,11 @@
 <script setup lang="ts">
 interface Props {
   count?: number
+  align?: 'left' | 'center' | 'right'
 }
 const {
   count = 0,
+  align = 'right',
 } = defineProps<Props>()
 
 const emit = defineEmits<{
@@ -20,17 +22,36 @@ function changePage() {
 </script>
 
 <template>
-  <n-pagination
-    v-if="count > 0"
-    v-model:page="page"
-    v-model:page-size="pageSize"
-    :page-sizes="[10, 20, 30, 50]"
-    :item-count="count"
-    :display-order="displayOrder"
-    show-size-picker
-    @update-page="changePage"
-    @update-page-size="changePage"
-  />
+  <div v-if="count > 0" :class="['pagination-wrapper', `pagination-${align}`]">
+    <n-pagination
+      v-model:page="page"
+      v-model:page-size="pageSize"
+      :page-sizes="[10, 20, 30, 50]"
+      :item-count="count"
+      :display-order="displayOrder"
+      show-size-picker
+      @update-page="changePage"
+      @update-page-size="changePage"
+    />
+  </div>
 </template>
 
-<style scoped></style>
+<style scoped>
+.pagination-wrapper {
+  padding: 10px 0;
+  display: flex;
+  width: 100%;
+}
+
+.pagination-left {
+  justify-content: flex-start;
+}
+
+.pagination-center {
+  justify-content: center;
+}
+
+.pagination-right {
+  justify-content: flex-end;
+}
+</style>

@@ -33,8 +33,12 @@ export function updateOrder(id: string, data: Api.Order.UpdateRequest) {
 }
 
 // 复制订单
-export function copyOrder(id: string) {
-  return request.Post<Service.ResponseResult<Api.Order.OrderResponse>>(`/order/orders/${id}/copy`, {})
+export function copyOrder(id: string, data?: {
+  is_related?: boolean
+  relation_type?: string
+  relation_remark?: string
+}) {
+  return request.Post<Service.ResponseResult<Api.Order.OrderResponse>>(`/order/orders/${id}/copy`, data || {})
 }
 
 // 删除订单
@@ -103,6 +107,11 @@ export function createCuttingBatch(data: Api.Order.CreateCuttingBatchRequest) {
   return request.Post<Service.ResponseResult<Api.Order.CuttingBatchResponse>>('/order/cutting/batches', data)
 }
 
+// 批量创建裁剪批次（制菲）
+export function bulkCreateCuttingBatch(data: Api.Order.BulkCreateCuttingBatchRequest) {
+  return request.Post<Service.ResponseResult<Api.Order.BulkCreateCuttingBatchResponse>>('/order/cutting/batches/bulk', data)
+}
+
 // 获取裁剪批次列表
 export function fetchCuttingBatchList(params: Api.Order.CuttingBatchListRequest) {
   return request.Get<Service.ResponseResult<Api.Order.CuttingBatchListResponse>>('/order/cutting/batches', { params })
@@ -121,6 +130,11 @@ export function deleteCuttingBatch(id: string) {
 // 打印裁剪批次
 export function printCuttingBatch(id: string) {
   return request.Post<Service.ResponseResult<Api.Order.CuttingBatchResponse>>(`/order/cutting/batches/${id}/print`, {})
+}
+
+// 批量打印裁剪批次
+export function batchPrintCuttingBatches(ids: string[]) {
+  return request.Post<Service.ResponseResult<Api.Order.BatchPrintResponse>>('/order/cutting/batches/batch-print', { ids })
 }
 
 // ==================== 裁片监控 (Cutting Piece) ====================

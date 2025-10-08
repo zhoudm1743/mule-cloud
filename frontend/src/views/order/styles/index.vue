@@ -15,12 +15,25 @@ const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 
+// 分页处理函数
+function handlePageChange(p: number) {
+  page.value = p
+  fetchData()
+}
+
+function handlePageSizeChange(ps: number) {
+  pageSize.value = ps
+  page.value = 1
+  fetchData()
+}
+
 // 搜索表单
-const searchForm = ref({
+const initialSearchForm = {
   style_no: '',
   style_name: '',
   status: undefined as number | undefined,
-})
+}
+const searchForm = ref({ ...initialSearchForm })
 
 async function fetchData() {
   startLoading()
@@ -54,6 +67,13 @@ async function deleteHandler(id: string) {
   catch (error: any) {
     window.$message.error(error.message || '删除失败')
   }
+}
+
+// 重置搜索
+function handleResetSearch() {
+  searchForm.value = { ...initialSearchForm }
+  page.value = 1
+  fetchData()
 }
 
 async function batchDelete() {
@@ -202,29 +222,32 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
+  <NSpace vertical size="large">
     <NCard title="款式管理" :bordered="false" class="rounded-8px shadow-sm">
-      <div class="flex-col">
-        <!-- 搜索区域 -->
-        <NSpace class="pb-12px" justify="space-between">
-          <NSpace>
+      <n-form :model="searchForm" label-placement="left" inline :show-feedback="false">
+        <n-flex>
+          <n-form-item label="款号">
             <NInput
               v-model:value="searchForm.style_no"
-              placeholder="搜索款号"
+              placeholder="请输入款号"
               clearable
               class="w-200px"
               @keyup.enter="fetchData"
             />
+          </n-form-item>
+          <n-form-item label="款名">
             <NInput
               v-model:value="searchForm.style_name"
-              placeholder="搜索款名"
+              placeholder="请输入款名"
               clearable
               class="w-200px"
               @keyup.enter="fetchData"
             />
+          </n-form-item>
+          <n-form-item label="状态">
             <NSelect
               v-model:value="searchForm.status"
-              placeholder="状态"
+              placeholder="请选择"
               clearable
               class="w-120px"
               :options="[
@@ -232,41 +255,47 @@ onMounted(() => {
                 { label: '禁用', value: 0 },
               ]"
             />
+          </n-form-item>
+          <n-flex class="ml-auto">
             <NButton type="primary" @click="fetchData">
               <template #icon>
                 <nova-icon icon="carbon:search" :size="18" />
               </template>
-              查询
+              搜索
             </NButton>
-            <NButton @click="searchForm = { style_no: '', style_name: '', status: undefined }; fetchData()">
+            <NButton strong secondary @click="handleResetSearch">
               <template #icon>
                 <nova-icon icon="carbon:reset" :size="18" />
               </template>
               重置
             </NButton>
-          </NSpace>
-          <NSpace>
-            <NButton type="primary" @click="tableModalRef?.openModal('add')">
-              <template #icon>
-                <nova-icon icon="carbon:add" :size="18" />
-              </template>
-              新建款式
-            </NButton>
-            <NPopconfirm @positive-click="batchDelete">
-              <template #trigger>
-                <NButton type="error">
-                  <template #icon>
-                    <nova-icon icon="carbon:trash-can" :size="18" />
-                  </template>
-                  批量删除
-                </NButton>
-              </template>
-              确定批量删除选中的款式吗？
-            </NPopconfirm>
-          </NSpace>
-        </NSpace>
-
-        <!-- 表格 -->
+          </n-flex>
+        </n-flex>
+      </n-form>
+    </NCard>
+    
+    <NCard :bordered="false" class="rounded-8px shadow-sm">
+      <NSpace vertical size="large">
+        <div class="flex gap-4">
+          <NButton type="primary" @click="tableModalRef?.openModal('add')">
+            <template #icon>
+              <nova-icon icon="carbon:add" :size="18" />
+            </template>
+            新建款式
+          </NButton>
+          <NPopconfirm @positive-click="batchDelete">
+            <template #trigger>
+              <NButton type="error">
+                <template #icon>
+                  <nova-icon icon="carbon:trash-can" :size="18" />
+                </template>
+                批量删除
+              </NButton>
+            </template>
+            确定批量删除选中的款式吗？
+          </NPopconfirm>
+        </div>
+        
         <NDataTable
           v-model:checked-row-keys="checkedRowKeys"
           :columns="columns"
@@ -274,34 +303,12 @@ onMounted(() => {
           :loading="loading"
           :scroll-x="1800"
           :row-key="(row: Api.Order.StyleInfo) => row.id"
-          :pagination="{
-            page,
-            pageSize,
-            pageCount: Math.ceil(total / pageSize),
-            showSizePicker: true,
-            pageSizes: [10, 20, 50, 100],
-            onChange: (p: number) => { page = p; fetchData() },
-            onUpdatePageSize: (ps: number) => { pageSize = ps; page = 1; fetchData() },
-          }"
-          class="flex-1-hidden"
         />
-      </div>
+        <Pagination :count="total" :page="page" :page-size="pageSize" @change="handlePageChange" @update-page-size="handlePageSizeChange" />
+      </NSpace>
     </NCard>
 
     <!-- 编辑弹窗 -->
     <TableModal ref="tableModalRef" @refresh="fetchData" />
-  </div>
+  </NSpace>
 </template>
-
-<style scoped>
-.flex-col {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.flex-1-hidden {
-  flex: 1;
-  overflow: hidden;
-}
-</style>

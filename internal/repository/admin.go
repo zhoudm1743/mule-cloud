@@ -69,6 +69,9 @@ type AdminRepository interface {
 
 	// GetCollection 获取MongoDB集合（供高级用法使用）
 	GetCollection() *mongo.Collection
+
+	// GetCollectionWithContext 使用Context获取MongoDB集合（支持租户隔离）
+	GetCollectionWithContext(ctx context.Context) *mongo.Collection
 }
 
 // adminRepository Admin数据仓库实现
@@ -83,10 +86,10 @@ func NewAdminRepository() AdminRepository {
 	}
 }
 
-// getCollection 获取集合（自动根据Context中的租户ID切换数据库）
+// getCollection 获取集合（自动根据Context中的租户Code切换数据库）
 func (r *adminRepository) getCollection(ctx context.Context) *mongo.Collection {
-	tenantID := tenantCtx.GetTenantID(ctx)
-	db := r.dbManager.GetDatabase(tenantID)
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	db := r.dbManager.GetDatabase(tenantCode)
 	return db.Collection("admin")
 }
 
@@ -512,4 +515,9 @@ func (r *adminRepository) GetCollection() *mongo.Collection {
 	// 返回系统库的collection作为默认值（向下兼容）
 	// 实际使用时应该调用 getCollection(ctx)
 	return r.dbManager.GetSystemDatabase().Collection("admin")
+}
+
+// GetCollectionWithContext 使用Context获取MongoDB集合（支持租户隔离）
+func (r *adminRepository) GetCollectionWithContext(ctx context.Context) *mongo.Collection {
+	return r.getCollection(ctx)
 }

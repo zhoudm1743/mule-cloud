@@ -33,8 +33,17 @@ func (r *OperationLogRepository) getCollection(ctx context.Context) *mongo.Colle
 func (r *OperationLogRepository) Create(ctx context.Context, log *models.OperationLog) error {
 	collection := r.getCollection(ctx)
 
-	_, err := collection.InsertOne(ctx, log)
-	return err
+	result, err := collection.InsertOne(ctx, log)
+	if err != nil {
+		return err
+	}
+
+	// 将 bson.ObjectID 转换为字符串
+	if oid, ok := result.InsertedID.(bson.ObjectID); ok {
+		log.ID = oid.Hex()
+	}
+
+	return nil
 }
 
 // List 查询操作日志（支持分页和筛选）
@@ -71,8 +80,14 @@ func (r *OperationLogRepository) List(ctx context.Context, filter bson.M, page, 
 func (r *OperationLogRepository) GetByID(ctx context.Context, id string) (*models.OperationLog, error) {
 	collection := r.getCollection(ctx)
 
+	// 将字符串 ID 转换为 ObjectID
+	objectID, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		return nil, err
+	}
+
 	var log models.OperationLog
-	err := collection.FindOne(ctx, bson.M{"_id": id}).Decode(&log)
+	err = collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&log)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return nil, nil

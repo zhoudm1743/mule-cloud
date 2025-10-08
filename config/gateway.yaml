@@ -52,6 +52,12 @@ hystrix:
       request_volume_threshold: 20
       sleep_window: 5000
       error_percent_threshold: 60
+    commonservice:
+      timeout: 10000
+      max_concurrent_requests: 100
+      request_volume_threshold: 20
+      sleep_window: 5000
+      error_percent_threshold: 60
 
 gateway:
   rate_limit:
@@ -71,6 +77,10 @@ gateway:
       require_role: []
     /basic:
       service_name: "basicservice"
+      require_auth: false
+      require_role: []
+    /admin/common:
+      service_name: "commonservice"
       require_auth: false
       require_role: []
     /admin:

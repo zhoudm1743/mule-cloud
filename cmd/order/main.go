@@ -129,11 +129,13 @@ func main() {
 			// 裁剪批次路由
 			batches := cutting.Group("/batches")
 			{
-				batches.POST("", transport.CreateCuttingBatchHandler(cuttingSvc))          // 创建裁剪批次（制菲）
-				batches.GET("", transport.ListCuttingBatchesHandler(cuttingSvc))           // 裁剪批次列表
-				batches.GET("/:id", transport.GetCuttingBatchHandler(cuttingSvc))          // 获取裁剪批次详情
-				batches.DELETE("/:id", transport.DeleteCuttingBatchHandler(cuttingSvc))    // 删除裁剪批次
-				batches.POST("/:id/print", transport.PrintCuttingBatchHandler(cuttingSvc)) // 打印裁剪批次
+				batches.POST("", transport.CreateCuttingBatchHandler(cuttingSvc))                   // 创建裁剪批次（制菲）
+				batches.POST("/bulk", transport.BulkCreateCuttingBatchHandler(cuttingSvc))          // 批量创建裁剪批次（制菲）
+				batches.GET("", transport.ListCuttingBatchesHandler(cuttingSvc))                    // 裁剪批次列表
+				batches.GET("/:id", transport.GetCuttingBatchHandler(cuttingSvc))                   // 获取裁剪批次详情
+				batches.DELETE("/:id", transport.DeleteCuttingBatchHandler(cuttingSvc))             // 删除裁剪批次
+				batches.POST("/:id/print", transport.PrintCuttingBatchHandler(cuttingSvc))          // 打印裁剪批次
+				batches.POST("/batch-print", transport.BatchPrintCuttingBatchesHandler(cuttingSvc)) // 批量打印裁剪批次
 			}
 
 			// 裁片监控路由

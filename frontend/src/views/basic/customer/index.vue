@@ -15,12 +15,38 @@ const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 
+// 搜索表单
+const initialSearchForm = {
+  value: '',
+}
+const searchForm = ref({ ...initialSearchForm })
+
+// 分页处理
+function handlePageChange(p: number) {
+  page.value = p
+  fetchData()
+}
+
+function handlePageSizeChange(ps: number) {
+  pageSize.value = ps
+  page.value = 1
+  fetchData()
+}
+
+// 重置搜索
+function handleResetSearch() {
+  searchForm.value = { ...initialSearchForm }
+  page.value = 1
+  fetchData()
+}
+
 async function fetchData() {
   startLoading()
   try {
     const res = await fetchCustomerList({
       page: page.value,
       page_size: pageSize.value,
+      value: searchForm.value.value || undefined,
     })
     if (res.data) {
       tableData.value = res.data.customers || []
@@ -144,47 +170,72 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="h-full flex-col gap-16px overflow-hidden p-16px lt-sm:p-8px">
-    <NCard title="客户管理" :bordered="false" class="h-full">
-      <template #header-extra>
-        <NSpace>
+  <NSpace vertical size="large">
+    <NCard title="客户管理" :bordered="false" class="rounded-8px shadow-sm">
+      <n-form :model="searchForm" label-placement="left" inline :show-feedback="false">
+        <n-flex>
+          <n-form-item label="客户名称">
+            <n-input
+              v-model:value="searchForm.value"
+              placeholder="请输入客户名称"
+              clearable
+              class="w-200px"
+              @keyup.enter="fetchData"
+            />
+          </n-form-item>
+          <n-flex class="ml-auto">
+            <NButton type="primary" @click="fetchData">
+              <template #icon>
+                <nova-icon icon="carbon:search" :size="18" />
+              </template>
+              搜索
+            </NButton>
+            <NButton strong secondary @click="handleResetSearch">
+              <template #icon>
+                <nova-icon icon="carbon:reset" :size="18" />
+              </template>
+              重置
+            </NButton>
+          </n-flex>
+        </n-flex>
+      </n-form>
+    </NCard>
+
+    <NCard :bordered="false" class="rounded-8px shadow-sm">
+      <NSpace vertical size="large">
+        <div class="flex gap-4">
           <NButton type="primary" @click="tableModalRef.openModal('add')">
             <template #icon>
-              <icon-park-outline-add-one />
+              <nova-icon icon="carbon:add" :size="18" />
             </template>
-            新建
-          </NButton>
-          <NButton @click="fetchData()">
-            <template #icon>
-              <icon-park-outline-refresh />
-            </template>
-            刷新
+            新建客户
           </NButton>
           <NPopconfirm @positive-click="batchDelete">
             <template #trigger>
               <NButton type="error">
                 <template #icon>
-                  <icon-park-outline-delete-five />
+                  <nova-icon icon="carbon:trash-can" :size="18" />
                 </template>
                 批量删除
               </NButton>
             </template>
             确认删除选中的客户？
           </NPopconfirm>
-        </NSpace>
-      </template>
+        </div>
 
-      <NDataTable
-        v-model:checked-row-keys="checkedRowKeys"
-        :columns="columns"
-        :data="tableData"
-        :loading="loading"
-        :scroll-x="1200"
-        :row-key="(row: Api.Basic.BasicInfo) => row.id"
-      />
+        <NDataTable
+          v-model:checked-row-keys="checkedRowKeys"
+          :columns="columns"
+          :data="tableData"
+          :loading="loading"
+          :scroll-x="1200"
+          :row-key="(row: Api.Basic.BasicInfo) => row.id"
+        />
+        <Pagination :count="total" :page="page" :page-size="pageSize" @change="handlePageChange" @update-page-size="handlePageSizeChange" />
+      </NSpace>
     </NCard>
 
     <TableModal ref="tableModalRef" @refresh="fetchData" />
-  </div>
+  </NSpace>
 </template>
 

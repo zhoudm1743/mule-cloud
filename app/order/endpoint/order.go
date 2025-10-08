@@ -87,7 +87,7 @@ func UpdateOrderEndpoint(svc services.IOrderService) endpoint.Endpoint {
 func CopyOrderEndpoint(svc services.IOrderService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.OrderCopyRequest)
-		order, err := svc.Copy(ctx, req.ID)
+		order, err := svc.Copy(ctx, req.ID, req.IsRelated, req.RelationType, req.RelationRemark)
 		if err != nil {
 			return nil, err
 		}

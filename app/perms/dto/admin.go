@@ -16,8 +16,8 @@ type AdminListRequest struct {
 }
 
 type AdminCreateRequest struct {
-	Phone    string   `json:"phone" binding:"required"`
-	Password string   `json:"password" binding:"required"`
+	Phone    string   `json:"phone" binding"required"`
+	Password string   `json:"password" binding"required"`
 	Nickname string   `json:"nickname"`
 	Email    string   `json:"email"`
 	TenantID string   `json:"tenant_id"` // 租户ID（空表示系统级用户）

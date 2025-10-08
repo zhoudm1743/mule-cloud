@@ -54,8 +54,8 @@ func (h *AdminHandlers) GetRoute(c *gin.Context) {
 
 // AddRouteRequest 添加路由请求
 type AddRouteRequest struct {
-	Prefix      string   `json:"prefix" binding:"required"`
-	ServiceName string   `json:"service_name" binding:"required"`
+	Prefix      string   `json:"prefix" binding"required"`
+	ServiceName string   `json:"service_name" binding"required"`
 	RequireAuth bool     `json:"require_auth"`
 	RequireRole []string `json:"require_role"`
 }
@@ -180,12 +180,12 @@ func (h *AdminHandlers) GetHystrixConfig(c *gin.Context) {
 
 // AddHystrixConfigRequest 添加Hystrix配置请求
 type AddHystrixConfigRequest struct {
-	ServiceName            string `json:"service_name" binding:"required"`
-	Timeout                int    `json:"timeout" binding:"required"`
-	MaxConcurrentRequests  int    `json:"max_concurrent_requests" binding:"required"`
-	RequestVolumeThreshold int    `json:"request_volume_threshold" binding:"required"`
-	SleepWindow            int    `json:"sleep_window" binding:"required"`
-	ErrorPercentThreshold  int    `json:"error_percent_threshold" binding:"required"`
+	ServiceName            string `json:"service_name" binding"required"`
+	Timeout                int    `json:"timeout" binding"required"`
+	MaxConcurrentRequests  int    `json:"max_concurrent_requests" binding"required"`
+	RequestVolumeThreshold int    `json:"request_volume_threshold" binding"required"`
+	SleepWindow            int    `json:"sleep_window" binding"required"`
+	ErrorPercentThreshold  int    `json:"error_percent_threshold" binding"required"`
 }
 
 // AddHystrixConfig 添加Hystrix配置

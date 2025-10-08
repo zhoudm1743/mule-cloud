@@ -4,7 +4,7 @@ import "mule-cloud/internal/models"
 
 // CuttingTaskCreateRequest 创建裁剪任务请求
 type CuttingTaskCreateRequest struct {
-	OrderID   string `json:"order_id" binding:"required"`
+	OrderID   string `json:"order_id" binding"required"`
 	CreatedBy string `json:"created_by"`
 }
 
@@ -30,13 +30,35 @@ type CuttingTaskResponse struct {
 
 // CuttingBatchCreateRequest 创建裁剪批次请求
 type CuttingBatchCreateRequest struct {
-	TaskID      string                `json:"task_id" binding:"required"`
-	BedNo       string                `json:"bed_no" binding:"required"`
-	BundleNo    string                `json:"bundle_no" binding:"required"`
-	Color       string                `json:"color" binding:"required"`
-	LayerCount  int                   `json:"layer_count" binding:"required,gt=0"`
-	SizeDetails []models.SizeDetail   `json:"size_details" binding:"required,min=1"`
-	CreatedBy   string                `json:"created_by"`
+	TaskID      string              `json:"task_id" binding"required"`
+	BedNo       string              `json:"bed_no" binding"required"`
+	BundleNo    string              `json:"bundle_no" binding"required"`
+	Color       string              `json:"color" binding"required"`
+	LayerCount  int                 `json:"layer_count" binding"required,gt=0"`
+	SizeDetails []models.SizeDetail `json:"size_details" binding"required,min=1"`
+	CreatedBy   string              `json:"created_by"`
+}
+
+// BatchItem 批量创建批次中的单个批次数据
+type BatchItem struct {
+	BundleNo    string              `json:"bundle_no" binding"required"`
+	Color       string              `json:"color" binding"required"`
+	LayerCount  int                 `json:"layer_count" binding"required,gt=0"`
+	SizeDetails []models.SizeDetail `json:"size_details" binding"required,min=1"`
+}
+
+// CuttingBatchBulkCreateRequest 批量创建裁剪批次请求
+type CuttingBatchBulkCreateRequest struct {
+	TaskID    string      `json:"task_id" binding"required"`
+	BedNo     string      `json:"bed_no" binding"required"`
+	Batches   []BatchItem `json:"batches" binding"required,min=1"`
+	CreatedBy string      `json:"created_by"`
+}
+
+// CuttingBatchBulkCreateResponse 批量创建裁剪批次响应
+type CuttingBatchBulkCreateResponse struct {
+	Batches []*models.CuttingBatch `json:"batches"`
+	Count   int                    `json:"count"`
 }
 
 // CuttingBatchListRequest 裁剪批次列表请求
@@ -58,6 +80,17 @@ type CuttingBatchListResponse struct {
 // CuttingBatchResponse 裁剪批次响应
 type CuttingBatchResponse struct {
 	Batch *models.CuttingBatch `json:"batch"`
+}
+
+// BatchPrintRequest 批量打印请求
+type BatchPrintRequest struct {
+	IDs []string `json:"ids" binding:"required,min=1"`
+}
+
+// BatchPrintResponse 批量打印响应
+type BatchPrintResponse struct {
+	Batches []*models.CuttingBatch `json:"batches"`
+	Count   int                    `json:"count"`
 }
 
 // CuttingPieceListRequest 裁片监控列表请求
@@ -83,5 +116,5 @@ type CuttingPieceResponse struct {
 
 // CuttingPieceProgressRequest 更新裁片进度请求
 type CuttingPieceProgressRequest struct {
-	Progress int `json:"progress" binding:"required,gte=0"`
+	Progress int `json:"progress" binding"required,gte=0"`
 }

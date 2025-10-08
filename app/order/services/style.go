@@ -40,7 +40,7 @@ func (s *StyleService) Get(ctx context.Context, id string) (*models.Style, error
 func (s *StyleService) GetAll(ctx context.Context, req dto.StyleListRequest) ([]models.Style, error) {
 	// 构建过滤条件
 	filter := bson.M{"is_deleted": 0}
-	
+
 	if req.StyleNo != "" {
 		filter["style_no"] = bson.M{"$regex": req.StyleNo, "$options": "i"}
 	}
@@ -59,7 +59,7 @@ func (s *StyleService) GetAll(ctx context.Context, req dto.StyleListRequest) ([]
 	if req.Status > 0 {
 		filter["status"] = req.Status
 	}
-	
+
 	opts := options.Find().SetSort(bson.M{"created_at": -1})
 	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
@@ -67,13 +67,13 @@ func (s *StyleService) GetAll(ctx context.Context, req dto.StyleListRequest) ([]
 		return nil, err
 	}
 	defer cursor.Close(ctx)
-	
+
 	styles := []models.Style{}
 	err = cursor.All(ctx, &styles)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return styles, nil
 }
 
@@ -81,7 +81,7 @@ func (s *StyleService) GetAll(ctx context.Context, req dto.StyleListRequest) ([]
 func (s *StyleService) List(ctx context.Context, req dto.StyleListRequest) ([]models.Style, int64, error) {
 	// 构建过滤条件
 	filter := bson.M{"is_deleted": 0}
-	
+
 	if req.ID != "" {
 		filter["_id"] = req.ID
 	}
@@ -103,33 +103,43 @@ func (s *StyleService) List(ctx context.Context, req dto.StyleListRequest) ([]mo
 	if req.Status > 0 {
 		filter["status"] = req.Status
 	}
-	
+
 	// 获取总数
 	total, err := s.repo.Count(ctx, filter)
 	if err != nil {
 		return nil, 0, err
 	}
-	
+
+	// 设置分页默认值
+	page := req.Page
+	if page <= 0 {
+		page = 1
+	}
+	pageSize := req.PageSize
+	if pageSize <= 0 {
+		pageSize = 10
+	}
+
 	// 分页查询
-	offset := (req.Page - 1) * req.PageSize
+	offset := int64((page - 1) * pageSize)
 	opts := options.Find().
 		SetSkip(offset).
-		SetLimit(req.PageSize).
+		SetLimit(int64(pageSize)).
 		SetSort(bson.M{"created_at": -1})
-	
+
 	collection := s.repo.GetCollectionWithContext(ctx)
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer cursor.Close(ctx)
-	
+
 	styles := []models.Style{}
 	err = cursor.All(ctx, &styles)
 	if err != nil {
 		return nil, 0, err
 	}
-	
+
 	return styles, total, nil
 }
 
@@ -141,9 +151,9 @@ func (s *StyleService) Create(ctx context.Context, req dto.StyleCreateRequest) (
 			return nil, err
 		}
 	}
-	
+
 	now := time.Now().Unix()
-	
+
 	style := &models.Style{
 		StyleNo:    req.StyleNo,
 		StyleName:  req.StyleName,
@@ -160,19 +170,19 @@ func (s *StyleService) Create(ctx context.Context, req dto.StyleCreateRequest) (
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
-	
+
 	err := s.repo.Create(ctx, style)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return style, nil
 }
 
 // Update 更新款式
 func (s *StyleService) Update(ctx context.Context, req dto.StyleUpdateRequest) (*models.Style, error) {
 	update := bson.M{"updated_at": time.Now().Unix()}
-	
+
 	if req.StyleName != "" {
 		update["style_name"] = req.StyleName
 	}
@@ -210,12 +220,12 @@ func (s *StyleService) Update(ctx context.Context, req dto.StyleUpdateRequest) (
 	if req.Status >= 0 {
 		update["status"] = req.Status
 	}
-	
+
 	err := s.repo.Update(ctx, req.ID, update)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return s.repo.Get(ctx, req.ID)
 }
 

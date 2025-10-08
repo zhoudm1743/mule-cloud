@@ -18,34 +18,34 @@ type StyleListRequest struct {
 
 // StyleCreateRequest 创建款式请求
 type StyleCreateRequest struct {
-	StyleNo    string                   `json:"style_no" binding:"required"`    // 款号
-	StyleName  string                   `json:"style_name" binding:"required"`  // 款名
-	Category   string                   `json:"category"`                       // 分类
-	Season     string                   `json:"season"`                         // 季节
-	Year       string                   `json:"year"`                           // 年份
-	Images     []string                 `json:"images"`                         // 图片URL列表
-	Colors     []string                 `json:"colors"`                         // 颜色列表
-	Sizes      []string                 `json:"sizes"`                          // 尺码列表
-	UnitPrice  float64                  `json:"unit_price"`                     // 单价
-	Remark     string                   `json:"remark"`                         // 备注
-	Procedures []models.StyleProcedure  `json:"procedures"`                     // 工序清单
-	Status     int                      `json:"status"`                         // 状态
+	StyleNo    string                  `json:"style_no" binding"required"`   // 款号
+	StyleName  string                  `json:"style_name" binding"required"` // 款名
+	Category   string                  `json:"category"`                     // 分类
+	Season     string                  `json:"season"`                       // 季节
+	Year       string                  `json:"year"`                         // 年份
+	Images     []string                `json:"images"`                       // 图片URL列表
+	Colors     []string                `json:"colors"`                       // 颜色列表
+	Sizes      []string                `json:"sizes"`                        // 尺码列表
+	UnitPrice  float64                 `json:"unit_price"`                   // 单价
+	Remark     string                  `json:"remark"`                       // 备注
+	Procedures []models.StyleProcedure `json:"procedures"`                   // 工序清单
+	Status     int                     `json:"status"`                       // 状态
 }
 
 // StyleUpdateRequest 更新款式请求
 type StyleUpdateRequest struct {
-	ID         string                   `uri:"id" binding:"required"`
-	StyleName  string                   `json:"style_name"`  // 款名
-	Category   string                   `json:"category"`    // 分类
-	Season     string                   `json:"season"`      // 季节
-	Year       string                   `json:"year"`        // 年份
-	Images     []string                 `json:"images"`      // 图片URL列表
-	Colors     []string                 `json:"colors"`      // 颜色列表
-	Sizes      []string                 `json:"sizes"`       // 尺码列表
-	UnitPrice  float64                  `json:"unit_price"`  // 单价
-	Remark     string                   `json:"remark"`      // 备注
-	Procedures []models.StyleProcedure  `json:"procedures"`  // 工序清单
-	Status     int                      `json:"status"`      // 状态
+	ID         string                  `uri:"id" binding"required"`
+	StyleName  string                  `json:"style_name"` // 款名
+	Category   string                  `json:"category"`   // 分类
+	Season     string                  `json:"season"`     // 季节
+	Year       string                  `json:"year"`       // 年份
+	Images     []string                `json:"images"`     // 图片URL列表
+	Colors     []string                `json:"colors"`     // 颜色列表
+	Sizes      []string                `json:"sizes"`      // 尺码列表
+	UnitPrice  float64                 `json:"unit_price"` // 单价
+	Remark     string                  `json:"remark"`     // 备注
+	Procedures []models.StyleProcedure `json:"procedures"` // 工序清单
+	Status     int                     `json:"status"`     // 状态
 }
 
 // StyleResponse 款式响应

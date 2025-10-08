@@ -68,6 +68,17 @@ func CreateCuttingBatchEndpoint(s services.ICuttingService) endpoint.Endpoint {
 	}
 }
 
+func BulkCreateCuttingBatchEndpoint(s services.ICuttingService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(dto.CuttingBatchBulkCreateRequest)
+		batches, err := s.BulkCreateCuttingBatch(ctx, &req)
+		if err != nil {
+			return nil, err
+		}
+		return &dto.CuttingBatchBulkCreateResponse{Batches: batches, Count: len(batches)}, nil
+	}
+}
+
 func ListCuttingBatchesEndpoint(s services.ICuttingService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.CuttingBatchListRequest)
@@ -109,6 +120,17 @@ func PrintCuttingBatchEndpoint(s services.ICuttingService) endpoint.Endpoint {
 			return nil, err
 		}
 		return &dto.CuttingBatchResponse{Batch: batch}, nil
+	}
+}
+
+func BatchPrintCuttingBatchesEndpoint(s services.ICuttingService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(dto.BatchPrintRequest)
+		batches, err := s.BatchPrintCuttingBatches(ctx, req.IDs)
+		if err != nil {
+			return nil, err
+		}
+		return &dto.BatchPrintResponse{Batches: batches, Count: len(batches)}, nil
 	}
 }
 

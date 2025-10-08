@@ -15,7 +15,7 @@ const tenantOptions = ref<SelectOption[]>([
   },
 ])
 
-// 当前选择的租户
+// 当前选择的租户（使用 Code 而不是 ID）
 const selectedTenantId = ref<string>('')
 
 // 是否为系统管理员
@@ -36,7 +36,7 @@ async function loadTenants() {
         },
         ...data.tenants.map(tenant => ({
           label: `${tenant.name} (${tenant.code})`,
-          value: tenant.id,
+          value: tenant.code, // ✅ 使用 code 而不是 id
         })),
       ]
     }
@@ -48,8 +48,8 @@ async function loadTenants() {
 
 // 切换租户
 function onTenantChange(value: string) {
-  // 保存选择的租户ID
-  local.set('selected_tenant_id', value)
+  // ✅ 保存选择的租户 Code（而不是 ID）
+  local.set('selected_tenant_code', value)
   
   // 刷新当前页面
   window.location.reload()
@@ -57,9 +57,9 @@ function onTenantChange(value: string) {
 
 // 恢复上次选择的租户
 function restoreSelection() {
-  const savedTenantId = local.get('selected_tenant_id')
-  if (savedTenantId) {
-    selectedTenantId.value = savedTenantId
+  const savedTenantCode = local.get('selected_tenant_code')
+  if (savedTenantCode) {
+    selectedTenantId.value = savedTenantCode
   }
 }
 

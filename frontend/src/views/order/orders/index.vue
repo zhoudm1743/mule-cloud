@@ -3,7 +3,7 @@ import type { DataTableColumns } from 'naive-ui'
 import CopyText from '@/components/custom/CopyText.vue'
 import { useBoolean } from '@/hooks'
 import { copyOrder, createCuttingTask, deleteOrder, fetchCuttingTaskByOrderId, fetchOrderList } from '@/service/api/order'
-import { NButton, NImage, NPopconfirm, NSpace, NTag } from 'naive-ui'
+import { NAlert, NButton, NFormItem, NImage, NInput, NPopconfirm, NRadio, NRadioGroup, NSpace, NSwitch, NTag, NText } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import TableModal from './components/TableModal.vue'
 
@@ -17,13 +17,26 @@ const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 
+// 分页处理函数
+function handlePageChange(p: number) {
+  page.value = p
+  fetchData()
+}
+
+function handlePageSizeChange(ps: number) {
+  pageSize.value = ps
+  page.value = 1
+  fetchData()
+}
+
 // 搜索表单
-const searchForm = ref({
+const initialSearchForm = {
   contract_no: '',
   style_no: '',
   customer_id: '',
   status: undefined as number | undefined,
-})
+}
+const searchForm = ref({ ...initialSearchForm })
 
 // 订单状态映射
 const statusMap = {
@@ -68,15 +81,42 @@ async function deleteHandler(id: string) {
   }
 }
 
-async function copyHandler(id: string) {
+// 复制订单相关
+const showCopyModal = ref(false)
+const copyOrderId = ref('')
+const copyForm = ref({
+  is_related: true,
+  relation_type: 'add',
+  relation_remark: ''
+})
+
+function openCopyModal(id: string) {
+  copyOrderId.value = id
+  copyForm.value = {
+    is_related: true,
+    relation_type: 'add',
+    relation_remark: ''
+  }
+  showCopyModal.value = true
+}
+
+async function confirmCopy() {
   try {
-    await copyOrder(id)
+    await copyOrder(copyOrderId.value, copyForm.value)
     window.$message.success('复制成功')
+    showCopyModal.value = false
     fetchData()
   }
   catch (error: any) {
     window.$message.error(error.message || '复制失败')
   }
+}
+
+// 重置搜索
+function handleResetSearch() {
+  searchForm.value = { ...initialSearchForm }
+  page.value = 1
+  fetchData()
 }
 
 async function batchDelete() {
@@ -250,7 +290,7 @@ const columns: DataTableColumns<Api.Order.OrderInfo> = [
           </NButton>
           <NButton
             size={'small'}
-            onClick={() => copyHandler(row.id)}
+            onClick={() => openCopyModal(row.id)}
           >
             复制
           </NButton>
@@ -272,29 +312,32 @@ onMounted(() => {
 </script>
 
 <template>
-  <div>
+  <NSpace vertical size="large">
     <NCard title="订单管理" :bordered="false" class="rounded-8px shadow-sm">
-      <div class="flex-col">
-        <!-- 搜索区域 -->
-        <NSpace class="pb-12px" justify="space-between">
-          <NSpace>
+      <n-form :model="searchForm" label-placement="left" inline :show-feedback="false">
+        <n-flex>
+          <n-form-item label="合同号">
             <NInput
               v-model:value="searchForm.contract_no"
-              placeholder="搜索合同号"
+              placeholder="请输入合同号"
               clearable
               class="w-200px"
               @keyup.enter="fetchData"
             />
+          </n-form-item>
+          <n-form-item label="款号">
             <NInput
               v-model:value="searchForm.style_no"
-              placeholder="搜索款号"
+              placeholder="请输入款号"
               clearable
               class="w-200px"
               @keyup.enter="fetchData"
             />
+          </n-form-item>
+          <n-form-item label="订单状态">
             <NSelect
               v-model:value="searchForm.status"
-              placeholder="订单状态"
+              placeholder="请选择"
               clearable
               class="w-150px"
               :options="[
@@ -305,41 +348,47 @@ onMounted(() => {
                 { label: '已取消', value: 4 },
               ]"
             />
+          </n-form-item>
+          <n-flex class="ml-auto">
             <NButton type="primary" @click="fetchData">
               <template #icon>
                 <nova-icon icon="carbon:search" :size="18" />
               </template>
-              查询
+              搜索
             </NButton>
-            <NButton @click="searchForm = { contract_no: '', style_no: '', customer_id: '', status: undefined }; fetchData()">
+            <NButton strong secondary @click="handleResetSearch">
               <template #icon>
                 <nova-icon icon="carbon:reset" :size="18" />
               </template>
               重置
             </NButton>
-          </NSpace>
-          <NSpace>
-            <NButton type="primary" @click="tableModalRef?.openModal('add')">
-              <template #icon>
-                <nova-icon icon="carbon:add" :size="18" />
-              </template>
-              新建订单
-            </NButton>
-            <NPopconfirm @positive-click="batchDelete">
-              <template #trigger>
-                <NButton type="error">
-                  <template #icon>
-                    <nova-icon icon="carbon:trash-can" :size="18" />
-                  </template>
-                  批量删除
-                </NButton>
-              </template>
-              确定批量删除选中的订单吗？
-            </NPopconfirm>
-          </NSpace>
-        </NSpace>
-
-        <!-- 表格 -->
+          </n-flex>
+        </n-flex>
+      </n-form>
+    </NCard>
+    
+    <NCard :bordered="false" class="rounded-8px shadow-sm">
+      <NSpace vertical size="large">
+        <div class="flex gap-4">
+          <NButton type="primary" @click="tableModalRef?.openModal('add')">
+            <template #icon>
+              <nova-icon icon="carbon:add" :size="18" />
+            </template>
+            新建订单
+          </NButton>
+          <NPopconfirm @positive-click="batchDelete">
+            <template #trigger>
+              <NButton type="error">
+                <template #icon>
+                  <nova-icon icon="carbon:trash-can" :size="18" />
+                </template>
+                批量删除
+              </NButton>
+            </template>
+            确定批量删除选中的订单吗？
+          </NPopconfirm>
+        </div>
+        
         <NDataTable
           v-model:checked-row-keys="checkedRowKeys"
           :columns="columns"
@@ -347,23 +396,85 @@ onMounted(() => {
           :loading="loading"
           :scroll-x="2000"
           :row-key="(row: Api.Order.OrderInfo) => row.id"
-          :pagination="{
-            page,
-            pageSize,
-            pageCount: Math.ceil(total / pageSize),
-            showSizePicker: true,
-            pageSizes: [10, 20, 50, 100],
-            onChange: (p: number) => { page = p; fetchData() },
-            onUpdatePageSize: (ps: number) => { pageSize = ps; page = 1; fetchData() },
-          }"
-          class="flex-1-hidden"
         />
-      </div>
+        <Pagination :count="total" :page="page" :page-size="pageSize" @change="handlePageChange" @update-page-size="handlePageSizeChange" />
+      </NSpace>
     </NCard>
 
     <!-- 编辑弹窗 -->
     <TableModal ref="tableModalRef" @refresh="fetchData" />
-  </div>
+    
+    <!-- 复制订单弹窗 -->
+    <NModal v-model:show="showCopyModal" preset="card" title="复制订单" class="w-500px">
+      <NForm label-placement="left" :label-width="100">
+        <NFormItem label="是否关联">
+          <NSwitch v-model:value="copyForm.is_related">
+            <template #checked>
+              关联原订单
+            </template>
+            <template #unchecked>
+              独立订单
+            </template>
+          </NSwitch>
+        </NFormItem>
+        
+        <template v-if="copyForm.is_related">
+          <NFormItem label="关联类型">
+            <NRadioGroup v-model:value="copyForm.relation_type">
+              <NSpace>
+                <NRadio value="add">
+                  追加订单
+                  <NText depth="3" style="font-size: 12px; margin-left: 8px">
+                    （客户增加数量）
+                  </NText>
+                </NRadio>
+                <NRadio value="copy">
+                  复制订单
+                  <NText depth="3" style="font-size: 12px; margin-left: 8px">
+                    （重复下单）
+                  </NText>
+                </NRadio>
+              </NSpace>
+            </NRadioGroup>
+          </NFormItem>
+          
+          <NFormItem label="关联说明">
+            <NInput
+              v-model:value="copyForm.relation_remark"
+              type="textarea"
+              :rows="3"
+              placeholder="选填，可说明追加原因或备注信息"
+            />
+          </NFormItem>
+        </template>
+        
+        <NAlert type="info" style="margin-bottom: 16px">
+          <template v-if="copyForm.is_related">
+            <div v-if="copyForm.relation_type === 'add'">
+              <strong>追加订单：</strong>新订单将关联原订单，合同号自动添加"-A"后缀，便于追踪和统计。
+            </div>
+            <div v-else>
+              <strong>复制订单：</strong>新订单将关联原订单，合同号自动添加"-C"后缀，保留关联关系。
+            </div>
+          </template>
+          <template v-else>
+            <strong>独立订单：</strong>新订单与原订单无关联，合同号添加"-copy"后缀。
+          </template>
+        </NAlert>
+      </NForm>
+      
+      <template #footer>
+        <NSpace justify="end">
+          <NButton @click="showCopyModal = false">
+            取消
+          </NButton>
+          <NButton type="primary" @click="confirmCopy">
+            确认复制
+          </NButton>
+        </NSpace>
+      </template>
+    </NModal>
+  </NSpace>
 </template>
 
 <style scoped>

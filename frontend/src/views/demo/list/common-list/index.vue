@@ -201,7 +201,7 @@ function handleAddTable() {
           </NButton>
         </div>
         <n-data-table :columns="columns" :data="listData" :loading="loading" />
-        <Pagination :count="100" @change="changePage" />
+        <Pagination :count="100" align="right" @change="changePage" />
         <TableModal v-model:visible="visible" :type="modalType" :modal-data="editData" />
       </NSpace>
     </n-card>

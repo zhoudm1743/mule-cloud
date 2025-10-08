@@ -64,6 +64,8 @@ func main() {
 	adminSvc := services.NewAdminService()
 	menuSvc := services.NewMenuService()
 	roleSvc := services.NewRoleService()
+	deptSvc := services.NewDepartmentService()
+	postSvc := services.NewPostService()
 
 	// 初始化 JWT 管理器（用于直接访问时验证token）
 	jwtManager := jwtPkg.NewJWTManager(nil, 0)
@@ -133,6 +135,30 @@ func main() {
 			role.POST("/batch-delete", transport.BatchDeleteRolesHandler(roleSvc)) // 批量删除
 			role.POST("/:id/menus", transport.AssignMenusHandler(roleSvc))         // 分配菜单权限
 			role.GET("/:id/menus", transport.GetRoleMenusHandler(roleSvc))         // 获取角色的菜单权限
+		}
+
+		// 部门路由
+		dept := perms.Group("/departments")
+		{
+			dept.GET("/:id", transport.GetDepartmentHandler(deptSvc))                    // 获取单个部门
+			dept.GET("", transport.ListDepartmentsHandler(deptSvc))                      // 分页列表
+			dept.GET("/all", transport.GetAllDepartmentsHandler(deptSvc))                // 获取所有部门（不分页）
+			dept.POST("", transport.CreateDepartmentHandler(deptSvc))                    // 创建部门
+			dept.PUT("/:id", transport.UpdateDepartmentHandler(deptSvc))                 // 更新部门
+			dept.DELETE("/:id", transport.DeleteDepartmentHandler(deptSvc))              // 删除部门
+			dept.POST("/batch-delete", transport.BatchDeleteDepartmentsHandler(deptSvc)) // 批量删除
+		}
+
+		// 岗位路由
+		post := perms.Group("/posts")
+		{
+			post.GET("/:id", transport.GetPostHandler(postSvc))                    // 获取单个岗位
+			post.GET("", transport.ListPostsHandler(postSvc))                      // 分页列表
+			post.GET("/all", transport.GetAllPostsHandler(postSvc))                // 获取所有岗位（不分页）
+			post.POST("", transport.CreatePostHandler(postSvc))                    // 创建岗位
+			post.PUT("/:id", transport.UpdatePostHandler(postSvc))                 // 更新岗位
+			post.DELETE("/:id", transport.DeletePostHandler(postSvc))              // 删除岗位
+			post.POST("/batch-delete", transport.BatchDeletePostsHandler(postSvc)) // 批量删除
 		}
 	}
 

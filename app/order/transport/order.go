@@ -4,6 +4,7 @@ import (
 	"mule-cloud/app/order/dto"
 	"mule-cloud/app/order/endpoint"
 	"mule-cloud/app/order/services"
+	"mule-cloud/core/binding"
 	"mule-cloud/core/response"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +14,7 @@ import (
 func GetOrderHandler(svc services.IOrderService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.OrderListRequest
-		if err := c.ShouldBindUri(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -33,7 +34,7 @@ func GetOrderHandler(svc services.IOrderService) gin.HandlerFunc {
 func ListOrdersHandler(svc services.IOrderService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.OrderListRequest
-		if err := c.ShouldBind(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -53,7 +54,7 @@ func ListOrdersHandler(svc services.IOrderService) gin.HandlerFunc {
 func CreateOrderHandler(svc services.IOrderService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.OrderCreateRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -73,13 +74,8 @@ func CreateOrderHandler(svc services.IOrderService) gin.HandlerFunc {
 func UpdateOrderStyleHandler(svc services.IOrderService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.OrderStyleRequest
-		// 先绑定 URI 参数（ID）
-		if err := c.ShouldBindUri(&req); err != nil {
-			response.Error(c, "参数错误: "+err.Error())
-			return
-		}
-		// 再绑定 JSON body
-		if err := c.ShouldBindJSON(&req); err != nil {
+		// 使用统一的绑定方法，自动处理 URI 和 Body 参数
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -99,13 +95,8 @@ func UpdateOrderStyleHandler(svc services.IOrderService) gin.HandlerFunc {
 func UpdateOrderProcedureHandler(svc services.IOrderService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.OrderProcedureRequest
-		// 先绑定 URI 参数（ID）
-		if err := c.ShouldBindUri(&req); err != nil {
-			response.Error(c, "参数错误: "+err.Error())
-			return
-		}
-		// 再绑定 JSON body
-		if err := c.ShouldBindJSON(&req); err != nil {
+		// 使用统一的绑定方法，自动处理 URI 和 Body 参数
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -125,13 +116,8 @@ func UpdateOrderProcedureHandler(svc services.IOrderService) gin.HandlerFunc {
 func UpdateOrderHandler(svc services.IOrderService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.OrderUpdateRequest
-		// 先绑定 JSON body
-		if err := c.ShouldBindJSON(&req); err != nil {
-			response.Error(c, "参数错误: "+err.Error())
-			return
-		}
-		// 再绑定 URI 参数（ID）
-		if err := c.ShouldBindUri(&req); err != nil {
+		// 使用统一的绑定方法，自动处理 URI 和 Body 参数
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}
@@ -151,9 +137,15 @@ func UpdateOrderHandler(svc services.IOrderService) gin.HandlerFunc {
 func CopyOrderHandler(svc services.IOrderService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.OrderCopyRequest
-		if err := c.ShouldBindUri(&req); err != nil {
+		// 绑定URI参数（订单ID）
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
+		}
+
+		// 绑定Body参数（关联信息）
+		if err := binding.BindAll(c, &req); err != nil {
+			// Body参数可选，不报错，使用默认值
 		}
 
 		ep := endpoint.CopyOrderEndpoint(svc)
@@ -171,7 +163,7 @@ func CopyOrderHandler(svc services.IOrderService) gin.HandlerFunc {
 func DeleteOrderHandler(svc services.IOrderService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		var req dto.OrderListRequest
-		if err := c.ShouldBindUri(&req); err != nil {
+		if err := binding.BindAll(c, &req); err != nil {
 			response.Error(c, "参数错误: "+err.Error())
 			return
 		}

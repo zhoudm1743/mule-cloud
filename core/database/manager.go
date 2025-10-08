@@ -15,7 +15,7 @@ import (
 
 const (
 	// SystemDatabase 系统数据库名称（存储租户元数据和系统超管）
-	SystemDatabase = "tenant_system"
+	SystemDatabase = "mule_system"
 )
 
 // DatabaseManager 多租户数据库管理器
@@ -51,11 +51,11 @@ func GetDatabaseManager() *DatabaseManager {
 	return globalDBManager
 }
 
-// GetDatabase 获取租户数据库（空tenantCode返回系统库）
+// GetDatabase 获取租户数据库（空tenantCode或"system"返回系统库）
 // 注意：参数改为 tenantCode 而不是 tenantID，使数据库名更易读（如 mule_default）
 func (m *DatabaseManager) GetDatabase(tenantCode string) *mongo.Database {
 	// 系统超管使用系统库
-	if tenantCode == "" {
+	if tenantCode == "" || tenantCode == "system" {
 		return m.systemDB
 	}
 

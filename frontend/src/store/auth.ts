@@ -49,7 +49,7 @@ export const useAuthStore = defineStore('auth-store', {
       local.remove('accessToken')
       local.remove('refreshToken')
       local.remove('userInfo')
-      local.remove('selected_tenant_id') // 清除系统管理员选择的租户上下文
+      local.remove('selected_tenant_code') // 清除系统管理员选择的租户上下文
     },
 
     /* 用户登录 */
@@ -82,7 +82,7 @@ export const useAuthStore = defineStore('auth-store', {
 
       // ✅ 系统管理员登录时，清除之前选择的租户上下文
       if (!data.tenant_id) {
-        local.remove('selected_tenant_id')
+        local.remove('selected_tenant_code')
       }
 
       // 添加路由和菜单

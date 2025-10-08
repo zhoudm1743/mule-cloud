@@ -12,7 +12,7 @@ import (
 func GetAdminEndpoint(svc services.IAdminService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.AdminListRequest)
-		admin, err := svc.Get(req.ID)
+		admin, err := svc.Get(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -24,7 +24,7 @@ func GetAdminEndpoint(svc services.IAdminService) endpoint.Endpoint {
 func GetAllAdminsEndpoint(svc services.IAdminService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.AdminListRequest)
-		admins, err := svc.GetAll(req)
+		admins, err := svc.GetAll(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -36,7 +36,7 @@ func GetAllAdminsEndpoint(svc services.IAdminService) endpoint.Endpoint {
 func ListAdminsEndpoint(svc services.IAdminService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.AdminListRequest)
-		admins, total, err := svc.List(req)
+		admins, total, err := svc.List(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -51,7 +51,7 @@ func ListAdminsEndpoint(svc services.IAdminService) endpoint.Endpoint {
 func CreateAdminEndpoint(svc services.IAdminService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.AdminCreateRequest)
-		admin, err := svc.Create(req)
+		admin, err := svc.Create(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -63,7 +63,7 @@ func CreateAdminEndpoint(svc services.IAdminService) endpoint.Endpoint {
 func UpdateAdminEndpoint(svc services.IAdminService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.AdminUpdateRequest)
-		admin, err := svc.Update(req)
+		admin, err := svc.Update(ctx, req)
 		if err != nil {
 			return nil, err
 		}
@@ -75,7 +75,7 @@ func UpdateAdminEndpoint(svc services.IAdminService) endpoint.Endpoint {
 func DeleteAdminEndpoint(svc services.IAdminService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		req := request.(dto.AdminListRequest)
-		err := svc.Delete(req.ID)
+		err := svc.Delete(ctx, req.ID)
 		if err != nil {
 			return nil, err
 		}

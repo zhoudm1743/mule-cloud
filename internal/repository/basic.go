@@ -2,9 +2,11 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	tenantCtx "mule-cloud/core/context"
 	"mule-cloud/core/database"
 	"mule-cloud/internal/models"
+	"strings"
 	"time"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -96,10 +98,10 @@ func NewBasicRepository() BasicRepository {
 	}
 }
 
-// getCollection 获取集合（自动根据Context中的租户ID切换数据库）
+// getCollection 获取集合（自动根据Context中的租户Code切换数据库）
 func (r *basicRepository) getCollection(ctx context.Context) *mongo.Collection {
-	tenantID := tenantCtx.GetTenantID(ctx)
-	db := r.dbManager.GetDatabase(tenantID)
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	db := r.dbManager.GetDatabase(tenantCode)
 	return db.Collection("basic")
 }
 
@@ -212,6 +214,11 @@ func (r *basicRepository) Count(ctx context.Context, filter bson.M) (int64, erro
 
 // Create 创建记录
 func (r *basicRepository) Create(ctx context.Context, basic *models.Basic) error {
+	// 验证必填字段
+	if err := validateBasicData(basic); err != nil {
+		return err
+	}
+
 	collection := r.getCollection(ctx)
 	result, err := collection.InsertOne(ctx, basic)
 	if err != nil {
@@ -226,8 +233,41 @@ func (r *basicRepository) Create(ctx context.Context, basic *models.Basic) error
 	return nil
 }
 
+// validateBasicData 验证基础数据的必填字段
+func validateBasicData(basic *models.Basic) error {
+	// 验证 value 不能为空或纯空白（value 是用户输入的实际数据）
+	if basic.Value == "" || strings.TrimSpace(basic.Value) == "" {
+		return fmt.Errorf("数据值不能为空或纯空白字符")
+	}
+
+	// 验证 name（类型标识）不能为空
+	if basic.Name == "" || strings.TrimSpace(basic.Name) == "" {
+		return fmt.Errorf("数据类型不能为空")
+	}
+
+	return nil
+}
+
 // Update 更新记录
 func (r *basicRepository) Update(ctx context.Context, id string, update bson.M) error {
+	// 如果更新中包含 value 字段，验证不能为空或纯空白
+	if value, exists := update["value"]; exists {
+		if valueStr, ok := value.(string); ok {
+			if valueStr == "" || strings.TrimSpace(valueStr) == "" {
+				return fmt.Errorf("数据值不能为空或纯空白字符")
+			}
+		}
+	}
+
+	// 如果更新中包含 name 字段，验证不能为空或纯空白
+	if name, exists := update["name"]; exists {
+		if nameStr, ok := name.(string); ok {
+			if nameStr == "" || strings.TrimSpace(nameStr) == "" {
+				return fmt.Errorf("数据类型不能为空或纯空白字符")
+			}
+		}
+	}
+
 	collection := r.getCollection(ctx)
 	// 将字符串 ID 转换为 ObjectID 进行更新
 	objectID, err := bson.ObjectIDFromHex(id)
@@ -263,6 +303,24 @@ func (r *basicRepository) Update(ctx context.Context, id string, update bson.M) 
 
 // UpdateOne 按条件更新单条记录
 func (r *basicRepository) UpdateOne(ctx context.Context, filter bson.M, update bson.M) error {
+	// 如果更新中包含 value 字段，验证不能为空或纯空白
+	if value, exists := update["value"]; exists {
+		if valueStr, ok := value.(string); ok {
+			if valueStr == "" || strings.TrimSpace(valueStr) == "" {
+				return fmt.Errorf("数据值不能为空或纯空白字符")
+			}
+		}
+	}
+
+	// 如果更新中包含 name 字段，验证不能为空或纯空白
+	if name, exists := update["name"]; exists {
+		if nameStr, ok := name.(string); ok {
+			if nameStr == "" || strings.TrimSpace(nameStr) == "" {
+				return fmt.Errorf("数据类型不能为空或纯空白字符")
+			}
+		}
+	}
+
 	collection := r.getCollection(ctx)
 	updateDoc := bson.M{"$set": update}
 	_, err := collection.UpdateOne(ctx, filter, updateDoc)

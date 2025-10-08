@@ -109,6 +109,19 @@ function openModal(type: ModalType, data?: Api.Order.OrderInfo) {
   if (type === 'view' || type === 'edit') {
     if (data) {
       Object.assign(formModel, data)
+      // 确保数组字段不为null
+      if (!formModel.items) {
+        formModel.items = []
+      }
+      if (!formModel.procedures) {
+        formModel.procedures = []
+      }
+      if (!formModel.colors) {
+        formModel.colors = []
+      }
+      if (!formModel.sizes) {
+        formModel.sizes = []
+      }
       if (type === 'edit') {
         currentStep.value = 2 // 编辑时直接跳到最后一步
       }
@@ -237,7 +250,7 @@ async function handleStep2() {
     return
   }
 
-  // 计算总数量和总金额
+  // 计算总数量
   const totalQuantity = formModel.items.reduce((sum, item) => sum + item.quantity, 0)
   formModel.quantity = totalQuantity
 
@@ -337,14 +350,6 @@ async function handleEditSubmit() {
   }
 }
 
-// 计算总金额
-function calculateTotalAmount() {
-  if (formModel.unit_price > 0 && formModel.quantity > 0) {
-    return formModel.unit_price * formModel.quantity
-  }
-  return 0
-}
-
 // 订单明细表格列定义
 const itemColumns = computed(() => [
   { title: '颜色', key: 'color' },
@@ -353,25 +358,25 @@ const itemColumns = computed(() => [
     title: '数量',
     key: 'quantity',
     render: (row: Api.Order.OrderItem, index: number) => {
+      if (!formModel.items || !formModel.items[index]) {
+        return h('span', '-')
+      }
       return h(NInputNumber, {
         value: formModel.items[index].quantity,
         disabled: modalType.value === 'view',
         min: 0,
         class: 'w-full',
         'onUpdate:value': (value: number | null) => {
-          formModel.items[index].quantity = value || 0
-          // 自动计算总数量和总金额
-          formModel.quantity = formModel.items.reduce((sum, item) => sum + item.quantity, 0)
+          if (formModel.items && formModel.items[index]) {
+            formModel.items[index].quantity = value || 0
+            // 自动计算总数量
+            formModel.quantity = formModel.items.reduce((sum, item) => sum + item.quantity, 0)
+          }
         },
       })
     },
   },
 ])
-
-// 计算工序总工价
-const totalProcedurePrice = computed(() => {
-  return formModel.procedures.reduce((sum, proc) => sum + (proc.unit_price || 0), 0)
-})
 
 // 工序表格列定义
 const procedureColumns = computed(() => [
@@ -382,6 +387,9 @@ const procedureColumns = computed(() => [
     key: 'unit_price',
     width: 120,
     render: (row: Api.Order.OrderProcedure, index: number) => {
+      if (!formModel.procedures || !formModel.procedures[index]) {
+        return h('span', '-')
+      }
       return h(NInputNumber, {
         value: formModel.procedures[index].unit_price,
         disabled: modalType.value === 'view',
@@ -389,7 +397,9 @@ const procedureColumns = computed(() => [
         precision: 2,
         class: 'w-full',
         'onUpdate:value': (value: number | null) => {
-          formModel.procedures[index].unit_price = value || 0
+          if (formModel.procedures && formModel.procedures[index]) {
+            formModel.procedures[index].unit_price = value || 0
+          }
         },
       })
     },
@@ -399,12 +409,17 @@ const procedureColumns = computed(() => [
     key: 'assigned_worker',
     width: 120,
     render: (row: Api.Order.OrderProcedure, index: number) => {
+      if (!formModel.procedures || !formModel.procedures[index]) {
+        return h('span', '-')
+      }
       return h(NInput, {
         value: formModel.procedures[index].assigned_worker,
         disabled: modalType.value === 'view',
         placeholder: '指定工人',
         'onUpdate:value': (value: string) => {
-          formModel.procedures[index].assigned_worker = value
+          if (formModel.procedures && formModel.procedures[index]) {
+            formModel.procedures[index].assigned_worker = value
+          }
         },
       })
     },
@@ -414,10 +429,14 @@ const procedureColumns = computed(() => [
     key: 'is_slowest',
     width: 80,
     render: (row: Api.Order.OrderProcedure, index: number) => {
+      if (!formModel.procedures || !formModel.procedures[index]) {
+        return h('span', '-')
+      }
       return h(NCheckbox, {
         checked: formModel.procedures[index].is_slowest,
         disabled: modalType.value === 'view',
         'onUpdate:checked': (value: boolean) => {
+          if (!formModel.procedures || !formModel.procedures[index]) return
           // 如果选中，取消其他工序的最终工序标记
           if (value) {
             formModel.procedures.forEach((proc, idx) => {
@@ -435,11 +454,16 @@ const procedureColumns = computed(() => [
     key: 'no_bundle',
     width: 80,
     render: (row: Api.Order.OrderProcedure, index: number) => {
+      if (!formModel.procedures || !formModel.procedures[index]) {
+        return h('span', '-')
+      }
       return h(NCheckbox, {
         checked: formModel.procedures[index].no_bundle,
         disabled: modalType.value === 'view',
         'onUpdate:checked': (value: boolean) => {
-          formModel.procedures[index].no_bundle = value
+          if (formModel.procedures && formModel.procedures[index]) {
+            formModel.procedures[index].no_bundle = value
+          }
         },
       })
     },
@@ -570,21 +594,14 @@ defineExpose({ openModal })
             />
           </NFormItemGridItem>
           <NFormItemGridItem path="unit_price" label="单价">
-            <NInputNumber v-model:value="formModel.unit_price" :disabled="modalType === 'view'" placeholder="单价" class="w-full" :precision="2" :min="0" />
+            <NInputNumber v-model:value="formModel.unit_price" :disabled="modalType === 'view'" placeholder="单价" class="w-full" :precision="2" />
           </NFormItemGridItem>
           <NFormItemGridItem path="quantity" label="总数量">
             <NInputNumber v-model:value="formModel.quantity" disabled placeholder="总数量" class="w-full" />
           </NFormItemGridItem>
-          <NFormItemGridItem path="total_amount" label="总金额" :span="2">
-            <NInputNumber :value="calculateTotalAmount()" disabled placeholder="总金额" class="w-full" :precision="2">
-              <template #suffix>
-                <span class="text-gray-400">元</span>
-              </template>
-            </NInputNumber>
-          </NFormItemGridItem>
         </NGrid>
 
-        <div v-if="formModel.items.length > 0" class="mt-4">
+        <div v-if="formModel.items && formModel.items.length > 0" class="mt-4">
           <NDivider>颜色尺码数量配置</NDivider>
           <NDataTable
             :columns="itemColumns"
@@ -600,15 +617,10 @@ defineExpose({ openModal })
         <NDivider>工序清单</NDivider>
         <NDataTable
           :columns="procedureColumns"
-          :data="formModel.procedures"
+          :data="formModel.procedures || []"
           size="small"
           max-height="300px"
         />
-        <div v-if="formModel.procedures.length > 0" class="mt-2 text-right">
-          <span class="text-gray-600">工序总工价：</span>
-          <span class="text-primary font-semibold">{{ totalProcedurePrice.toFixed(2) }}</span>
-          <span class="text-gray-400 ml-1">元/件</span>
-        </div>
       </div>
     </NForm>
 

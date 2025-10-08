@@ -13,12 +13,12 @@ type TenantListRequest struct {
 
 // TenantCreateRequest 创建租户请求
 type TenantCreateRequest struct {
-	Code          string `json:"code" binding:"required"`
-	Name          string `json:"name" binding:"required"`
-	Contact       string `json:"contact"`
-	Phone         string `json:"phone"`
-	Email         string `json:"email"`
-	Status        int    `json:"status"`
+	Code    string `json:"code" binding"required"`
+	Name    string `json:"name" binding"required"`
+	Contact string `json:"contact"`
+	Phone   string `json:"phone"`
+	Email   string `json:"email"`
+	Status  int    `json:"status"`
 	// 租户管理员信息（可选）
 	AdminPhone    string `json:"admin_phone"`    // 管理员手机号
 	AdminPassword string `json:"admin_password"` // 管理员密码
@@ -38,7 +38,7 @@ type TenantUpdateRequest struct {
 
 // AssignTenantMenusRequest 分配菜单权限给租户请求（超管使用）
 type AssignTenantMenusRequest struct {
-	Menus []string `json:"menus" binding:"required"` // 菜单ID数组
+	Menus []string `json:"menus" binding"required"` // 菜单ID数组
 }
 
 // GetTenantMenusResponse 获取租户菜单权限响应

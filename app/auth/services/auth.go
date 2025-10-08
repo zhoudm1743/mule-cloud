@@ -115,7 +115,8 @@ func (s *AuthService) Login(req dto.LoginRequest) (*dto.LoginResponse, error) {
 	} else {
 		// 2. 未提供租户代码，查询系统库（系统超管）
 		logger.Info("系统管理员登录", zap.String("phone", req.Phone))
-		ctx = tenantCtx.WithTenantCode(ctx, "") // 空=系统库
+		tenantCode = "system"                   // ✅ 设置默认租户代码，用于系统管理员的文件存储等
+		ctx = tenantCtx.WithTenantCode(ctx, "") // 空=系统库（用于查询admin表）
 		admin, err = s.repo.GetByPhone(ctx, req.Phone)
 		if err != nil {
 			logger.Error("查询系统用户失败", zap.Error(err))
@@ -245,6 +246,12 @@ func (s *AuthService) RefreshToken(req dto.RefreshTokenRequest) (*dto.RefreshTok
 
 // GetProfile 获取个人信息
 func (s *AuthService) GetProfile(ctx context.Context, userID string) (*dto.GetProfileResponse, error) {
+	// ✅ 特殊处理：如果 tenant_code 是 "system"，转换为空字符串（查询系统库）
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	if tenantCode == "system" {
+		ctx = tenantCtx.WithTenantCode(ctx, "") // 系统管理员存储在系统库中
+	}
+
 	// 尝试通过 ID 或 Phone 查询（自动排除软删除）
 	admin, err := s.repo.Get(ctx, userID)
 	if err != nil {
@@ -285,6 +292,12 @@ func (s *AuthService) GetProfile(ctx context.Context, userID string) (*dto.GetPr
 
 // UpdateProfile 更新个人信息
 func (s *AuthService) UpdateProfile(ctx context.Context, userID string, req dto.UpdateProfileRequest) (*dto.UpdateProfileResponse, error) {
+	// ✅ 特殊处理：如果 tenant_code 是 "system"，转换为空字符串（查询系统库）
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	if tenantCode == "system" {
+		ctx = tenantCtx.WithTenantCode(ctx, "") // 系统管理员存储在系统库中
+	}
+
 	// 构建更新字段
 	update := bson.M{
 		"updated_at": time.Now().Unix(),
@@ -315,6 +328,12 @@ func (s *AuthService) UpdateProfile(ctx context.Context, userID string, req dto.
 
 // ChangePassword 修改密码
 func (s *AuthService) ChangePassword(ctx context.Context, userID string, req dto.ChangePasswordRequest) (*dto.ChangePasswordResponse, error) {
+	// ✅ 特殊处理：如果 tenant_code 是 "system"，转换为空字符串（查询系统库）
+	tenantCode := tenantCtx.GetTenantCode(ctx)
+	if tenantCode == "system" {
+		ctx = tenantCtx.WithTenantCode(ctx, "") // 系统管理员存储在系统库中
+	}
+
 	// 查找用户（自动排除软删除）
 	admin, err := s.repo.Get(ctx, userID)
 	if err != nil {
@@ -364,9 +383,38 @@ func (s *AuthService) ValidateToken(token string) (*jwtPkg.Claims, error) {
 
 // GetUserRoutes 获取用户路由菜单
 func (s *AuthService) GetUserRoutes(ctx context.Context, userID string) (*dto.GetUserRoutesResponse, error) {
-	// 使用传入的 context（包含租户信息）
-	// 获取用户信息（自动根据 context 中的租户ID查询对应数据库）
-	admin, err := s.repo.Get(ctx, userID)
+	// ✅ 重要：获取用户路由时，应该从用户自己的租户数据库查询
+	// 不应该受 X-Tenant-Context 影响（X-Tenant-Context 只影响数据查询视图，不影响用户身份验证）
+
+	// 使用用户在 JWT 中的 tenant_code（系统管理员的 tenant_code 是 "system"）
+	// 这个值在 GatewayOrJWTAuth 中间件中从 JWT 解析并存入 context
+	userTenantCode := tenantCtx.GetTenantCode(ctx)
+
+	// 如果当前 context 中的 tenantCode 已经被 TenantContextMiddleware 修改过
+	// 我们需要使用 JWT 中原始的值
+	// 系统管理员切换租户后，context 中是切换后的租户，但用户身份验证应该用原始租户
+
+	// 检查是否是系统管理员（通过角色判断）
+	roles := tenantCtx.GetRoles(ctx)
+	isSuperAdmin := false
+	for _, role := range roles {
+		if role == "super" {
+			isSuperAdmin = true
+			break
+		}
+	}
+
+	// 如果是系统管理员，强制使用系统库（空字符串）
+	queryCtx := ctx
+	if isSuperAdmin {
+		queryCtx = tenantCtx.WithTenantCode(context.Background(), "") // 系统管理员存储在系统库
+	} else if userTenantCode == "system" {
+		// 非超管但 tenantCode 是 "system"，也查询系统库
+		queryCtx = tenantCtx.WithTenantCode(context.Background(), "")
+	}
+
+	// 获取用户信息（从用户自己的租户数据库）
+	admin, err := s.repo.Get(queryCtx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("查询用户失败: %w", err)
 	}
@@ -397,8 +445,8 @@ func (s *AuthService) GetUserRoutes(ctx context.Context, userID string) (*dto.Ge
 	}
 
 	// ✅ 特殊处理：租户管理员角色（tenant_admin）拥有租户的所有菜单
-	tenantCode := tenantCtx.GetTenantCode(ctx)
-	if tenantCode != "" {
+	// 使用原始的 tenantCode 来判断（不是 "system" 时才执行租户管理员逻辑）
+	if userTenantCode != "" && userTenantCode != "system" && !isSuperAdmin {
 		// 检查用户是否有租户管理员角色
 		for _, roleID := range admin.Roles {
 			role, err := s.roleRepo.Get(ctx, roleID)
@@ -406,10 +454,10 @@ func (s *AuthService) GetUserRoutes(ctx context.Context, userID string) (*dto.Ge
 				// 租户管理员：返回租户拥有的所有菜单
 				logger.Info("租户管理员登录，返回租户所有菜单",
 					zap.String("user_id", userID),
-					zap.String("tenant_code", tenantCode))
+					zap.String("tenant_code", userTenantCode))
 
-				// ✅ 使用 tenantCode 查询租户信息
-				tenant, err := s.tenantRepo.GetByCode(context.Background(), tenantCode)
+				// ✅ 使用 userTenantCode 查询租户信息
+				tenant, err := s.tenantRepo.GetByCode(context.Background(), userTenantCode)
 				if err != nil || tenant == nil {
 					logger.Error("获取租户信息失败", zap.Error(err))
 					break
@@ -470,7 +518,7 @@ func (s *AuthService) GetUserRoutes(ctx context.Context, userID string) (*dto.Ge
 				}
 
 				logger.Info("租户管理员菜单",
-					zap.String("tenant_code", tenantCode),
+					zap.String("tenant_code", userTenantCode),
 					zap.Strings("tenant_menus", tenant.Menus),
 					zap.Int("original_count", len(tenant.Menus)),
 					zap.Int("completed_count", len(tenantMenus)))

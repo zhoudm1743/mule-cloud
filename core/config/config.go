@@ -23,6 +23,7 @@ type Config struct {
 	MongoDB  MongoDBConfig  `mapstructure:"mongodb"`
 	Redis    RedisConfig    `mapstructure:"redis"`
 	Log      LogConfig      `mapstructure:"log"`
+	Storage  StorageConfig  `mapstructure:"storage"`
 }
 
 // ServerConfig 服务器配置
@@ -151,6 +152,48 @@ type LogConfig struct {
 	MaxBackups int    `mapstructure:"max_backups"` // 保留旧文件数量
 	MaxAge     int    `mapstructure:"max_age"`     // 天
 	Compress   bool   `mapstructure:"compress"`    // 是否压缩
+}
+
+// StorageConfig 存储配置
+type StorageConfig struct {
+	Type  string      `mapstructure:"type"`  // 存储类型: local/minio/s3/oss
+	Local LocalConfig `mapstructure:"local"` // 本地存储配置
+	MinIO MinIOConfig `mapstructure:"minio"` // MinIO配置
+	S3    S3Config    `mapstructure:"s3"`    // S3配置
+	OSS   OSSConfig   `mapstructure:"oss"`   // OSS配置
+}
+
+// LocalConfig 本地存储配置
+type LocalConfig struct {
+	UploadDir string `mapstructure:"upload_dir"` // 上传目录
+	BaseURL   string `mapstructure:"base_url"`   // 访问基础URL
+}
+
+// MinIOConfig MinIO配置
+type MinIOConfig struct {
+	Endpoint        string `mapstructure:"endpoint"`          // 端点
+	AccessKeyID     string `mapstructure:"access_key_id"`     // 访问密钥ID
+	SecretAccessKey string `mapstructure:"secret_access_key"` // 访问密钥
+	BucketName      string `mapstructure:"bucket_name"`       // 存储桶名称
+	UseSSL          bool   `mapstructure:"use_ssl"`           // 是否使用SSL
+	Region          string `mapstructure:"region"`            // 区域
+}
+
+// S3Config S3配置
+type S3Config struct {
+	Endpoint        string `mapstructure:"endpoint"`          // 端点（可选，默认AWS S3）
+	AccessKeyID     string `mapstructure:"access_key_id"`     // 访问密钥ID
+	SecretAccessKey string `mapstructure:"secret_access_key"` // 访问密钥
+	BucketName      string `mapstructure:"bucket_name"`       // 存储桶名称
+	Region          string `mapstructure:"region"`            // 区域
+}
+
+// OSSConfig 阿里云OSS配置
+type OSSConfig struct {
+	Endpoint        string `mapstructure:"endpoint"`          // 端点
+	AccessKeyID     string `mapstructure:"access_key_id"`     // 访问密钥ID
+	AccessKeySecret string `mapstructure:"access_key_secret"` // 访问密钥
+	BucketName      string `mapstructure:"bucket_name"`       // 存储桶名称
 }
 
 var (
