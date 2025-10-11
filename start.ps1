@@ -21,6 +21,7 @@ $services = @{
     "common"  = @{ Name = "Common";  Path = "cmd/common/main.go";  Port = 8083; Color = "Magenta"; Process = $null }
     "perms"   = @{ Name = "Perms";   Path = "cmd/perms/main.go";   Port = 8084; Color = "Cyan"; Process = $null }
     "order"   = @{ Name = "Order";   Path = "cmd/order/main.go";   Port = 8085; Color = "White"; Process = $null }
+    "miniapp" = @{ Name = "Miniapp"; Path = "cmd/miniapp/main.go"; Port = 8086; Color = "White"; Process = $null }
 }
 
 # 启动服务函数

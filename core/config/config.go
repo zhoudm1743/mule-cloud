@@ -24,6 +24,7 @@ type Config struct {
 	Redis    RedisConfig    `mapstructure:"redis"`
 	Log      LogConfig      `mapstructure:"log"`
 	Storage  StorageConfig  `mapstructure:"storage"`
+	Wechat   WechatConfig   `mapstructure:"wechat"`
 }
 
 // ServerConfig 服务器配置
@@ -194,6 +195,13 @@ type OSSConfig struct {
 	AccessKeyID     string `mapstructure:"access_key_id"`     // 访问密钥ID
 	AccessKeySecret string `mapstructure:"access_key_secret"` // 访问密钥
 	BucketName      string `mapstructure:"bucket_name"`       // 存储桶名称
+}
+
+// WechatConfig 微信配置
+type WechatConfig struct {
+	AppID     string `mapstructure:"app_id"`      // 小程序AppID
+	AppSecret string `mapstructure:"app_secret"`  // 小程序AppSecret
+	OpenAppID string `mapstructure:"open_app_id"` // 微信开放平台AppID（用于UnionID）
 }
 
 var (

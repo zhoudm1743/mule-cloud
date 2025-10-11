@@ -1,0 +1,18 @@
+node_modules/
+unpackage/
+dist/
+.hbuilderx/
+*.log
+.DS_Store
+Thumbs.db
+
+# 小程序临时文件
+.tmp/
+
+# 编辑器
+.vscode/
+.idea/
+
+# 依赖锁定文件（根据团队习惯选择保留或忽略）
+# package-lock.json
+# yarn.lock
