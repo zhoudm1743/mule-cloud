@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>生成 TabBar 图标</title>
+</head>
+<body>
+    <h2>TabBar 图标生成器</h2>
+    <p>在浏览器中打开此文件，点击按钮下载图标</p>
+    
+    <canvas id="canvas" width="81" height="81" style="border:1px solid #ddd;"></canvas>
+    <br><br>
+    
+    <button onclick="drawIcon('home', false)">首页-普通</button>
+    <button onclick="drawIcon('home', true)">首页-选中</button>
+    <button onclick="drawIcon('scan', false)">扫码-普通</button>
+    <button onclick="drawIcon('scan', true)">扫码-选中</button>
+    <button onclick="drawIcon('mine', false)">我的-普通</button>
+    <button onclick="drawIcon('mine', true)">我的-选中</button>
+    
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        function drawIcon(type, selected) {
+            ctx.clearRect(0, 0, 81, 81);
+            const color = selected ? '#5EA3F2' : '#999999';
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            
+            if (type === 'home') {
+                // 绘制房子
+                ctx.beginPath();
+                ctx.moveTo(40.5, 20);
+                ctx.lineTo(15, 40);
+                ctx.lineTo(22, 40);
+                ctx.lineTo(22, 60);
+                ctx.lineTo(59, 60);
+                ctx.lineTo(59, 40);
+                ctx.lineTo(66, 40);
+                ctx.closePath();
+                ctx.stroke();
+                
+                // 门
+                ctx.fillRect(35, 48, 12, 12);
+            } else if (type === 'scan') {
+                // 绘制扫码框
+                ctx.strokeRect(20, 20, 41, 41);
+                
+                // 四个角
+                ctx.lineWidth = 4;
+                // 左上
+                ctx.beginPath();
+                ctx.moveTo(25, 30);
+                ctx.lineTo(25, 25);
+                ctx.lineTo(30, 25);
+                ctx.stroke();
+                
+                // 右上
+                ctx.beginPath();
+                ctx.moveTo(51, 25);
+                ctx.lineTo(56, 25);
+                ctx.lineTo(56, 30);
+                ctx.stroke();
+                
+                // 左下
+                ctx.beginPath();
+                ctx.moveTo(25, 51);
+                ctx.lineTo(25, 56);
+                ctx.lineTo(30, 56);
+                ctx.stroke();
+                
+                // 右下
+                ctx.beginPath();
+                ctx.moveTo(56, 51);
+                ctx.lineTo(56, 56);
+                ctx.lineTo(51, 56);
+                ctx.stroke();
+                
+                // 扫描线
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = selected ? '#5EA3F2' : '#666';
+                ctx.beginPath();
+                ctx.moveTo(25, 40.5);
+                ctx.lineTo(56, 40.5);
+                ctx.stroke();
+            } else if (type === 'mine') {
+                // 绘制人形
+                ctx.beginPath();
+                ctx.arc(40.5, 28, 8, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.beginPath();
+                ctx.arc(40.5, 52, 15, 0, Math.PI, true);
+                ctx.fill();
+            }
+            
+            // 下载
+            const link = document.createElement('a');
+            link.download = `${type}${selected ? '-active' : ''}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+        }
+    </script>
+</body>
+</html>
+

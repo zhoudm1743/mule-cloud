@@ -44,11 +44,14 @@ type UserTenantInfo struct {
 	TenantID   string   `json:"tenant_id"`
 	TenantCode string   `json:"tenant_code"`
 	TenantName string   `json:"tenant_name"`
-	MemberID   string   `json:"member_id"`         // 成员ID
-	Status     string   `json:"status"`            // active/inactive
-	Roles      []string `json:"roles,omitempty"`   // 在该租户的角色
-	JoinedAt   int64    `json:"joined_at"`         // 加入时间
-	LeftAt     int64    `json:"left_at,omitempty"` // 离职时间
+	MemberID   string   `json:"member_id"`            // 成员ID
+	Status     string   `json:"status"`               // active/inactive
+	Roles      []string `json:"roles,omitempty"`      // 在该租户的角色
+	JoinedAt   int64    `json:"joined_at"`            // 加入时间
+	LeftAt     int64    `json:"left_at,omitempty"`    // 离职时间
+	JobNumber  string   `json:"job_number,omitempty"` // 工号
+	Department string   `json:"department,omitempty"` // 部门
+	Position   string   `json:"position,omitempty"`   // 岗位
 }
 
 // BindTenantRequest 绑定租户请求
@@ -104,9 +107,13 @@ type GetUserInfoResponse struct {
 
 // UpdateUserInfoRequest 更新用户信息请求
 type UpdateUserInfoRequest struct {
-	Nickname string `json:"nickname"`
-	Avatar   string `json:"avatar"`
-	Phone    string `json:"phone"`
+	Nickname   string `json:"nickname"`
+	Avatar     string `json:"avatar"`
+	Phone      string `json:"phone"`
+	Gender     int    `json:"gender"`     // 性别：0-未知 1-男 2-女
+	JobNumber  string `json:"job_number"` // 工号
+	Department string `json:"department"` // 部门
+	Position   string `json:"position"`   // 岗位
 }
 
 // UpdateUserInfoResponse 更新用户信息响应

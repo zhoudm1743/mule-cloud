@@ -465,7 +465,8 @@ func (s *WechatService) GetUserInfo(userID string) (*dto.GetUserInfoResponse, er
 			continue
 		}
 
-		tenantInfos = append(tenantInfos, dto.UserTenantInfo{
+		// 构建租户基本信息
+		tenantInfo := dto.UserTenantInfo{
 			TenantID:   tm.TenantID,
 			TenantCode: tm.TenantCode,
 			TenantName: tenant.Name,
@@ -473,7 +474,20 @@ func (s *WechatService) GetUserInfo(userID string) (*dto.GetUserInfoResponse, er
 			Status:     tm.Status,
 			JoinedAt:   tm.JoinedAt,
 			LeftAt:     tm.LeftAt,
-		})
+		}
+
+		// 查询租户成员详细信息
+		if tm.MemberID != "" {
+			tenantContext := tenantCtx.WithTenantCode(ctx, tm.TenantCode)
+			member, err := s.memberRepo.Get(tenantContext, tm.MemberID)
+			if err == nil && member != nil {
+				tenantInfo.JobNumber = member.JobNumber
+				tenantInfo.Department = member.Department
+				tenantInfo.Position = member.Position
+			}
+		}
+
+		tenantInfos = append(tenantInfos, tenantInfo)
 	}
 
 	return &dto.GetUserInfoResponse{
@@ -487,24 +501,67 @@ func (s *WechatService) UpdateUserInfo(userID string, req dto.UpdateUserInfoRequ
 	ctx := context.Background()
 	systemCtx := tenantCtx.WithTenantCode(ctx, "")
 
-	// 构建更新字段
-	update := map[string]interface{}{
+	// 构建全局用户信息更新字段
+	userUpdate := map[string]interface{}{
 		"updated_at": time.Now().Unix(),
 	}
 
 	if req.Nickname != "" {
-		update["nickname"] = req.Nickname
+		userUpdate["nickname"] = req.Nickname
 	}
 	if req.Avatar != "" {
-		update["avatar"] = req.Avatar
+		userUpdate["avatar"] = req.Avatar
 	}
 	if req.Phone != "" {
-		update["phone"] = req.Phone
+		userUpdate["phone"] = req.Phone
+	}
+	if req.Gender >= 0 && req.Gender <= 2 {
+		userUpdate["gender"] = req.Gender
 	}
 
-	err := s.wechatUserRepo.Update(systemCtx, userID, update)
+	// 更新全局用户信息
+	err := s.wechatUserRepo.Update(systemCtx, userID, userUpdate)
 	if err != nil {
 		return nil, fmt.Errorf("更新用户信息失败: %w", err)
+	}
+
+	// 如果有企业信息字段，更新租户成员信息
+	if req.JobNumber != "" || req.Department != "" || req.Position != "" {
+		// 获取用户所有租户
+		tenantMaps, err := s.userTenantRepo.GetUserTenants(systemCtx, userID)
+		if err != nil {
+			logger.Warn("获取用户租户列表失败", zap.Error(err))
+		}
+
+		// 更新所有租户的成员信息
+		for _, tenantMap := range tenantMaps {
+			tenantContext := tenantCtx.WithTenantCode(ctx, tenantMap.TenantCode)
+
+			// 构建成员信息更新字段
+			memberUpdate := map[string]interface{}{
+				"updated_at": time.Now().Unix(),
+			}
+			if req.JobNumber != "" {
+				memberUpdate["job_number"] = req.JobNumber
+			}
+			if req.Department != "" {
+				memberUpdate["department"] = req.Department
+			}
+			if req.Position != "" {
+				memberUpdate["position"] = req.Position
+			}
+
+			// 更新租户成员信息
+			if tenantMap.MemberID != "" {
+				err = s.memberRepo.Update(tenantContext, tenantMap.MemberID, memberUpdate)
+				if err != nil {
+					logger.Warn("更新租户成员信息失败",
+						zap.String("tenant_code", tenantMap.TenantCode),
+						zap.String("member_id", tenantMap.MemberID),
+						zap.Error(err))
+				}
+			}
+		}
 	}
 
 	return &dto.UpdateUserInfoResponse{

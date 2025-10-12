@@ -106,11 +106,15 @@ export const useUserStore = defineStore('user', {
 				const res = await getUserInfo()
 				this.userInfo = res.user_info
 				this.tenants = res.tenants || []
-				this.currentTenant = res.current_tenant
+				
+				// 如果响应中有 current_tenant，更新它；否则保持原有值
+				if (res.current_tenant) {
+					this.currentTenant = res.current_tenant
+					uni.setStorageSync('currentTenant', res.current_tenant)
+				}
 
 				uni.setStorageSync('userInfo', res.user_info)
 				uni.setStorageSync('tenants', res.tenants)
-				uni.setStorageSync('currentTenant', res.current_tenant)
 
 				return res
 			} catch (error) {

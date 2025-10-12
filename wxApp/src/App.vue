@@ -1,67 +1,53 @@
 <template>
-	<view>？</view>
+	<view></view>
 </template>
 
 <script setup>
-import { onLaunch, onShow, onHide } from '@dcloudio/uni-app'
+import { onLaunch, onShow } from '@dcloudio/uni-app'
+import { useUserStore } from '@/store/modules/user'
 
 onLaunch(() => {
 	console.log('App Launch')
 	
-	// 检查更新（仅微信小程序）
-	// #ifdef MP-WEIXIN
-	const updateManager = uni.getUpdateManager()
-	updateManager.onCheckForUpdate((res) => {
-		console.log('是否有新版本:', res.hasUpdate)
-	})
-	updateManager.onUpdateReady(() => {
-		uni.showModal({
-			title: '更新提示',
-			content: '新版本已经准备好，是否重启应用？',
-			success: (res) => {
-				if (res.confirm) {
-					updateManager.applyUpdate()
-				}
-			}
-		})
-	})
-	updateManager.onUpdateFailed(() => {
-		uni.showModal({
-			title: '更新失败',
-			content: '新版本下载失败，请删除小程序后重新搜索打开',
-			showCancel: false
-		})
-	})
-	// #endif
+	// 检查登录状态
+	checkLoginStatus()
 })
 
 onShow(() => {
 	console.log('App Show')
 })
 
-onHide(() => {
-	console.log('App Hide')
-})
+// 检查登录状态
+const checkLoginStatus = () => {
+	const userStore = useUserStore()
+	const token = uni.getStorageSync('token')
+	
+	console.log('检查登录状态, token:', token ? '存在' : '不存在')
+	console.log('isLoggedIn:', userStore.isLoggedIn)
+	console.log('hasTenant:', userStore.hasTenant)
+	
+	// 获取当前页面
+	const pages = getCurrentPages()
+	const currentPage = pages[pages.length - 1]
+	const currentRoute = currentPage ? currentPage.route : ''
+	
+	// 如果不是登录相关页面，且未登录，跳转到登录页
+	const authPages = ['pages/login/login', 'pages/bind-tenant/bind-tenant', 'pages/select-tenant/select-tenant']
+	const isAuthPage = authPages.some(page => currentRoute.includes(page))
+	
+	if (!userStore.isLoggedIn && !isAuthPage) {
+		console.log('未登录，跳转到登录页')
+		uni.reLaunch({
+			url: '/pages/login/login'
+		})
+	}
+}
 </script>
 
 <style lang="scss">
-@import '@/uni.scss';
+@import 'uview-plus/index.scss';
 
-/* 全局样式 */
 page {
-	background-color: #f5f5f5;
-	font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-}
-
-/* 通用按钮样式 */
-button {
-	&::after {
-		border: none;
-	}
-}
-
-/* 重置 uv-ui 样式 */
-.uv-popup__content {
-	background-color: transparent !important;
+	background-color: #F0F8FF;
 }
 </style>

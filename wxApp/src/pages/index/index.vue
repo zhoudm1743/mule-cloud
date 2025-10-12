@@ -1,35 +1,44 @@
 <template>
 	<view class="index-container">
-		<!-- 顶部欢迎区域 -->
-		<view class="welcome-section">
-			<view class="welcome-text">
-				<text class="greeting">你好，{{ userInfo.nickname || '用户' }}</text>
-				<text class="date">{{ currentDate }}</text>
-			</view>
-			<view class="tenant-badge" v-if="currentTenant">
-				<text>{{ currentTenant.tenant_name }}</text>
-			</view>
+	<!-- 顶部欢迎区域 -->
+	<view class="welcome-section">
+		<view class="welcome-text">
+			<text class="greeting">你好，{{ userInfo.nickname || '微信用户' }}</text>
+			<text class="date">{{ currentDate }}</text>
+			
 		</view>
+		<text class="job-info" v-if="currentTenantDetail.job_number">
+				工号：{{ currentTenantDetail.job_number }}
+			</text>
+	</view>
 
-		<!-- 快捷功能 -->
-		<view class="quick-actions">
-			<view class="action-item" @click="handleAction('order')">
-				<view class="action-icon">📋</view>
-				<view class="action-text">订单管理</view>
+	<!-- 快捷功能 -->
+	<view class="quick-actions">
+		<view class="action-item" @click="handleAction('order')">
+			<view class="action-icon">
+				<u-icon name="order" :size="48" color="#5EA3F2"></u-icon>
 			</view>
-			<view class="action-item" @click="handleAction('production')">
-				<view class="action-icon">🏭</view>
-				<view class="action-text">生产进度</view>
-			</view>
-			<view class="action-item" @click="handleAction('quality')">
-				<view class="action-icon">✅</view>
-				<view class="action-text">质量检查</view>
-			</view>
-			<view class="action-item" @click="handleAction('report')">
-				<view class="action-icon">📊</view>
-				<view class="action-text">数据报表</view>
-			</view>
+			<view class="action-text">订单管理</view>
 		</view>
+		<view class="action-item" @click="handleAction('production')">
+			<view class="action-icon">
+				<u-icon name="clock" :size="48" color="#66BB6A"></u-icon>
+			</view>
+			<view class="action-text">生产进度</view>
+		</view>
+		<view class="action-item" @click="handleAction('quality')">
+			<view class="action-icon">
+				<u-icon name="checkmark-circle-fill" :size="48" color="#FFA726"></u-icon>
+			</view>
+			<view class="action-text">质量检查</view>
+		</view>
+		<view class="action-item" @click="handleAction('report')">
+			<view class="action-icon">
+				<u-icon name="level" :size="48" color="#AB47BC"></u-icon>
+			</view>
+			<view class="action-text">数据报表</view>
+		</view>
+	</view>
 
 		<!-- 统计数据 -->
 		<view class="stats-section">
@@ -74,17 +83,29 @@
 				</view>
 			</view>
 		</view>
+		
+		<!-- 底部导航栏 -->
+		<TabBar :current="0" />
 	</view>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/store/modules/user'
+import TabBar from '@/components/TabBar/TabBar.vue'
 
 const userStore = useUserStore()
 
 const userInfo = computed(() => userStore.userInfo || {})
 const currentTenant = computed(() => userStore.currentTenant)
+const tenants = computed(() => userStore.tenants || [])
+
+// 获取当前租户的完整信息（包括工号等）
+const currentTenantDetail = computed(() => {
+	if (!currentTenant.value) return {}
+	const detail = tenants.value.find(t => t.tenant_id === currentTenant.value.tenant_id)
+	return detail || currentTenant.value
+})
 
 // 当前日期
 const currentDate = ref('')
@@ -104,7 +125,7 @@ const recentOrders = ref([
 	{ id: 3, name: '儿童校服定制', time: '1天前', status: 'pending', statusText: '待开始' }
 ])
 
-onMounted(() => {
+onMounted(async () => {
 	// 检查登录状态
 	if (!userStore.isLoggedIn) {
 		uni.reLaunch({
@@ -117,6 +138,13 @@ onMounted(() => {
 	const now = new Date()
 	const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' }
 	currentDate.value = now.toLocaleDateString('zh-CN', options)
+
+	// 加载用户信息（确保获取到工号等详细信息）
+	try {
+		await userStore.fetchUserInfo()
+	} catch (error) {
+		console.error('获取用户信息失败', error)
+	}
 
 	// 加载数据
 	loadData()
@@ -148,12 +176,12 @@ const handleOrderDetail = (order) => {
 <style lang="scss" scoped>
 .index-container {
 	min-height: 100vh;
-	background: #f5f5f5;
+	background: linear-gradient(180deg, #F0F8FF 0%, #FFFFFF 40%);
 	padding-bottom: 40rpx;
 }
 
 .welcome-section {
-	background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+	background: linear-gradient(135deg, #5EA3F2 0%, #4FC3F7 100%);
 	padding: 60rpx 40rpx;
 	display: flex;
 	justify-content: space-between;
@@ -172,9 +200,21 @@ const handleOrderDetail = (order) => {
 			display: block;
 			font-size: 26rpx;
 			color: rgba(255, 255, 255, 0.8);
+			margin-bottom: 8rpx;
 		}
-	}
 
+		
+	}
+	.job-info {
+			display: block;
+			font-size: 24rpx;
+			color: rgba(255, 255, 255, 0.9);
+			background: rgba(255, 255, 255, 0.15);
+			padding: 6rpx 16rpx;
+			border-radius: 12rpx;
+			display: inline-block;
+			margin-top: 8rpx;
+		}
 	.tenant-badge {
 		background: rgba(255, 255, 255, 0.2);
 		padding: 12rpx 24rpx;
@@ -199,16 +239,24 @@ const handleOrderDetail = (order) => {
 	box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.05);
 
 	.action-item {
-		text-align: center;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
 
 		.action-icon {
-			font-size: 60rpx;
-			margin-bottom: 12rpx;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			height: 96rpx;
+			margin-bottom: 8rpx;
 		}
 
 		.action-text {
 			font-size: 24rpx;
 			color: #666;
+			text-align: center;
+			line-height: 1.4;
 		}
 	}
 }

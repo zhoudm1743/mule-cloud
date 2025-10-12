@@ -73,11 +73,11 @@ const handleSelect = async (tenant) => {
 			icon: 'success'
 		})
 
-		setTimeout(() => {
-			uni.switchTab({
-				url: '/pages/index/index'
-			})
-		}, 1000)
+	setTimeout(() => {
+		uni.reLaunch({
+			url: '/pages/index/index'
+		})
+	}, 1000)
 	} catch (error) {
 		uni.hideLoading()
 		console.error('选择租户失败', error)

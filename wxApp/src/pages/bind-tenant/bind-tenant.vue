@@ -75,7 +75,8 @@ const handleBind = async () => {
 		userStore.setLoginInfo({
 			token: res.token,
 			user_info: userStore.userInfo,
-			current_tenant: res.tenant_info
+			current_tenant: res.tenant_info,
+			tenants: [res.tenant_info]
 		})
 
 		uni.showToast({
@@ -83,11 +84,11 @@ const handleBind = async () => {
 			icon: 'success'
 		})
 
-		setTimeout(() => {
-			uni.switchTab({
-				url: '/pages/index/index'
-			})
-		}, 1000)
+	setTimeout(() => {
+		uni.reLaunch({
+			url: '/pages/index/index'
+		})
+	}, 1000)
 	} catch (error) {
 		console.error('绑定失败', error)
 	} finally {
@@ -173,7 +174,7 @@ const contactAdmin = () => {
 	.submit-btn {
 		width: 100%;
 		height: 88rpx;
-		background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+		background: linear-gradient(135deg, #5EA3F2 0%, #4FC3F7 100%);
 		border-radius: 12rpx;
 		border: none;
 		font-size: 32rpx;

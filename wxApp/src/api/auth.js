@@ -54,10 +54,18 @@ export function getUserInfo() {
 
 /**
  * 更新用户信息
- * @param {Object} data 用户信息
+ * @param {Object} data 用户信息（包括基本信息和企业信息）
  */
 export function updateUserInfo(data) {
 	return put('/miniapp/user/info', data)
+}
+
+/**
+ * 更新租户成员信息
+ * @param {Object} data 成员信息（工号、部门、岗位等）
+ */
+export function updateMemberInfo(data) {
+	return put('/miniapp/member/info', data)
 }
 
 /**
