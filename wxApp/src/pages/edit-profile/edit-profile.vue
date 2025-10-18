@@ -4,8 +4,8 @@
 		<view class="avatar-section" @click="handleChooseAvatar">
 			<image :src="formData.avatar || '/static/logo.png'" mode="aspectFill"></image>
 			<view class="avatar-tip">
-				<u-icon name="camera-fill" :size="32" color="#5EA3F2"></u-icon>
-				<text>更换头像</text>
+				<u-icon v-if="!uploading" name="camera-fill" :size="32" color="#5EA3F2"></u-icon>
+				<text>{{ uploading ? '上传中...' : '更换头像' }}</text>
 			</view>
 		</view>
 
@@ -17,6 +17,7 @@
 					<view class="item-label">姓名</view>
 					<input 
 						class="item-input" 
+						type="text"
 						v-model="formData.name" 
 						placeholder="请输入姓名"
 						maxlength="20"
@@ -92,10 +93,11 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { useUserStore } from '@/store/modules/user'
-import { updateUserInfo } from '@/api/auth'
+import { updateUserInfo, uploadFile } from '@/api/auth'
 
 const userStore = useUserStore()
 const saving = ref(false)
+const uploading = ref(false)
 
 const formData = ref({
 	name: '',
@@ -134,18 +136,39 @@ onMounted(async () => {
 	}
 })
 
-// 选择头像
+// 选择头像 - 使用传统方式
 const handleChooseAvatar = () => {
+	if (uploading.value) return
+	
 	uni.chooseImage({
 		count: 1,
 		sizeType: ['compressed'],
 		sourceType: ['album', 'camera'],
-		success: (res) => {
-			formData.value.avatar = res.tempFilePaths[0]
-			uni.showToast({
-				title: '头像已选择',
-				icon: 'none'
-			})
+		success: async (res) => {
+			const tempFilePath = res.tempFilePaths[0]
+			
+			// 上传到服务器
+			try {
+				uploading.value = true
+				const uploadResult = await uploadFile(tempFilePath, 'avatar')
+				formData.value.avatar = uploadResult.url
+				console.log('头像上传成功', uploadResult)
+				uni.showToast({
+					title: '头像已更换',
+					icon: 'success'
+				})
+			} catch (error) {
+				console.error('头像上传失败', error)
+				uni.showToast({
+					title: error.message || '头像上传失败',
+					icon: 'none'
+				})
+			} finally {
+				uploading.value = false
+			}
+		},
+		fail: (err) => {
+			console.error('选择图片失败', err)
 		}
 	})
 }
@@ -232,6 +255,7 @@ const handleSave = async () => {
 	border-radius: 50%;
 	overflow: hidden;
 	box-shadow: 0 8rpx 24rpx rgba(94, 163, 242, 0.2);
+	cursor: pointer;
 	
 	image {
 		width: 100%;

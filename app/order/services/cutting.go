@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"mule-cloud/app/order/dto"
+	"mule-cloud/core/workflow"
 	"mule-cloud/internal/models"
 	"mule-cloud/internal/repository"
 
@@ -42,6 +43,7 @@ type cuttingService struct {
 	batchRepo repository.CuttingBatchRepository
 	pieceRepo repository.CuttingPieceRepository
 	orderRepo repository.OrderRepository
+	workflow  *workflow.OrderWorkflow
 }
 
 // NewCuttingService 创建裁剪服务
@@ -56,6 +58,7 @@ func NewCuttingService(
 		batchRepo: batchRepo,
 		pieceRepo: pieceRepo,
 		orderRepo: orderRepo,
+		workflow:  workflow.NewOrderWorkflow(),
 	}
 }
 
@@ -105,6 +108,9 @@ func (s *cuttingService) CreateCuttingTask(ctx context.Context, req *dto.Cutting
 		return nil, err
 	}
 
+	// 使用工作流更新订单状态
+	_ = s.workflow.StartCutting(ctx, order.ID, req.CreatedBy)
+
 	return task, nil
 }
 
@@ -150,10 +156,23 @@ func (s *cuttingService) CreateCuttingBatch(ctx context.Context, req *dto.Cuttin
 		return nil, err
 	}
 
+	// 获取订单信息，用于获取工序数量
+	order, err := s.orderRepo.Get(ctx, task.OrderID)
+	if err != nil {
+		return nil, fmt.Errorf("获取订单信息失败: %v", err)
+	}
+	totalProcess := len(order.Procedures) // 从订单获取工序数量
+
 	// 计算总件数
 	totalPieces := 0
 	for _, size := range req.SizeDetails {
 		totalPieces += size.Quantity * req.LayerCount
+	}
+
+	// 对扎号补0，个位数前面补0（如：1 -> 01）
+	formattedBundleNo := req.BundleNo
+	if bundleInt, err := strconv.Atoi(req.BundleNo); err == nil && bundleInt < 100 {
+		formattedBundleNo = fmt.Sprintf("%02d", bundleInt)
 	}
 
 	// 生成二维码内容（JSON格式）
@@ -163,7 +182,7 @@ func (s *cuttingService) CreateCuttingBatch(ctx context.Context, req *dto.Cuttin
 		"contract_no":  task.ContractNo,
 		"style_no":     task.StyleNo,
 		"bed_no":       req.BedNo,
-		"bundle_no":    req.BundleNo,
+		"bundle_no":    formattedBundleNo,
 		"color":        req.Color,
 		"layer_count":  req.LayerCount,
 		"size_details": req.SizeDetails,
@@ -179,7 +198,7 @@ func (s *cuttingService) CreateCuttingBatch(ctx context.Context, req *dto.Cuttin
 		ContractNo:  task.ContractNo,
 		StyleNo:     task.StyleNo,
 		BedNo:       req.BedNo,
-		BundleNo:    req.BundleNo,
+		BundleNo:    formattedBundleNo,
 		Color:       req.Color,
 		LayerCount:  req.LayerCount,
 		SizeDetails: req.SizeDetails,
@@ -206,7 +225,10 @@ func (s *cuttingService) CreateCuttingBatch(ctx context.Context, req *dto.Cuttin
 	task.UpdatedAt = time.Now().Unix()
 	_ = s.taskRepo.Update(ctx, task.ID, task)
 
-	// 创建裁片监控记录
+	// 使用工作流更新订单状态
+	_ = s.workflow.StartProduction(ctx, task.OrderID, req.CreatedBy, "制菲开始生产")
+
+	// 创建裁片监控记录（使用上面已经格式化好的 formattedBundleNo）
 	for _, size := range req.SizeDetails {
 		piece := &models.CuttingPiece{
 			ID:           primitive.NewObjectID().Hex(),
@@ -214,12 +236,12 @@ func (s *cuttingService) CreateCuttingBatch(ctx context.Context, req *dto.Cuttin
 			ContractNo:   task.ContractNo,
 			StyleNo:      task.StyleNo,
 			BedNo:        req.BedNo,
-			BundleNo:     req.BundleNo,
+			BundleNo:     formattedBundleNo,
 			Color:        req.Color,
 			Size:         size.Size,
 			Quantity:     size.Quantity * req.LayerCount,
 			Progress:     0,
-			TotalProcess: len(task.Batches), // 假设工序数等于批次数，实际应该从订单获取
+			TotalProcess: totalProcess, // 使用订单的工序数量
 			CreatedAt:    time.Now().Unix(),
 		}
 		_ = s.pieceRepo.Create(ctx, piece)
@@ -239,6 +261,13 @@ func (s *cuttingService) BulkCreateCuttingBatch(ctx context.Context, req *dto.Cu
 		return nil, err
 	}
 
+	// 获取订单信息，用于获取工序数量
+	order, err := s.orderRepo.Get(ctx, task.OrderID)
+	if err != nil {
+		return nil, fmt.Errorf("获取订单信息失败: %v", err)
+	}
+	totalProcess := len(order.Procedures) // 从订单获取工序数量
+
 	batches := make([]*models.CuttingBatch, 0)
 	totalCutPieces := 0
 	bundleNo, _ := strconv.Atoi(req.Batches[0].BundleNo) // 起始扎号
@@ -251,14 +280,39 @@ func (s *cuttingService) BulkCreateCuttingBatch(ctx context.Context, req *dto.Cu
 				continue // 跳过数量为0的尺码
 			}
 
+			// 验证层数
+			if batchItem.LayerCount <= 0 {
+				return nil, fmt.Errorf("拉布层数必须大于0")
+			}
+
+			// 计算实际需要创建的层数和每层数量
+			actualLayers := batchItem.LayerCount
+			piecesPerLayer := sizeDetail.Quantity / batchItem.LayerCount
+
+			// 如果数量小于层数，则只创建有件数的层
+			if sizeDetail.Quantity < batchItem.LayerCount {
+				actualLayers = sizeDetail.Quantity
+				piecesPerLayer = 1
+			}
+
 			// 每一层创建一个扎号
-			for layer := 0; layer < batchItem.LayerCount; layer++ {
+			for layer := 0; layer < actualLayers; layer++ {
 				// 每个扎号的件数 = 每层数量
-				piecesPerBundle := sizeDetail.Quantity
+				piecesPerBundle := piecesPerLayer
+
+				// 最后一层可能需要补上余数
+				if layer == actualLayers-1 {
+					remainder := sizeDetail.Quantity % actualLayers
+					if remainder > 0 || piecesPerLayer == 0 {
+						// 如果有余数，或者每层数量为0（数量<层数的情况），则最后一层包含所有剩余
+						piecesPerBundle = sizeDetail.Quantity - (piecesPerLayer * (actualLayers - 1))
+					}
+				}
+
 				totalCutPieces += piecesPerBundle
 
-				// 当前扎号
-				currentBundleNo := strconv.Itoa(bundleNo)
+				// 当前扎号（补0，个位数前面补0）
+				currentBundleNo := fmt.Sprintf("%02d", bundleNo)
 
 				// 生成二维码内容（JSON格式）- 每层每个尺码一个批次
 				qrCodeData := map[string]interface{}{
@@ -275,7 +329,7 @@ func (s *cuttingService) BulkCreateCuttingBatch(ctx context.Context, req *dto.Cu
 				}
 				qrCodeJSON, _ := json.Marshal(qrCodeData)
 
-				// 创建裁剪批次（每层每个尺码一个批次）
+				// 创建裁剪批次（每层每个尺码一个批次，currentBundleNo已经在上面格式化为补0格式）
 				batch := &models.CuttingBatch{
 					ID:         primitive.NewObjectID().Hex(),
 					TaskID:     req.TaskID,
@@ -289,7 +343,7 @@ func (s *cuttingService) BulkCreateCuttingBatch(ctx context.Context, req *dto.Cu
 					SizeDetails: []models.SizeDetail{
 						{
 							Size:     sizeDetail.Size,
-							Quantity: sizeDetail.Quantity, // 每层的数量
+							Quantity: piecesPerBundle, // 每层的实际数量
 						},
 					},
 					TotalPieces: piecesPerBundle,
@@ -305,7 +359,7 @@ func (s *cuttingService) BulkCreateCuttingBatch(ctx context.Context, req *dto.Cu
 					return nil, fmt.Errorf("创建批次 %s 失败: %v", currentBundleNo, err)
 				}
 
-				// 创建裁片监控记录
+				// 创建裁片监控记录（currentBundleNo已经在上面格式化为补0格式）
 				piece := &models.CuttingPiece{
 					ID:           primitive.NewObjectID().Hex(),
 					OrderID:      task.OrderID,
@@ -317,7 +371,7 @@ func (s *cuttingService) BulkCreateCuttingBatch(ctx context.Context, req *dto.Cu
 					Size:         sizeDetail.Size,
 					Quantity:     piecesPerBundle,
 					Progress:     0,
-					TotalProcess: len(task.Batches),
+					TotalProcess: totalProcess, // 使用订单的工序数量
 					CreatedAt:    time.Now().Unix(),
 				}
 				_ = s.pieceRepo.Create(ctx, piece)
@@ -341,6 +395,9 @@ func (s *cuttingService) BulkCreateCuttingBatch(ctx context.Context, req *dto.Cu
 	}
 	task.UpdatedAt = time.Now().Unix()
 	_ = s.taskRepo.Update(ctx, task.ID, task)
+
+	// 使用工作流更新订单状态
+	_ = s.workflow.StartProduction(ctx, task.OrderID, req.CreatedBy, "批量制菲开始生产")
 
 	return batches, nil
 }
@@ -376,6 +433,13 @@ func (s *cuttingService) DeleteCuttingBatch(ctx context.Context, id string) erro
 	err = s.batchRepo.Update(ctx, id, batch)
 	if err != nil {
 		return err
+	}
+
+	// 删除对应的裁片监控记录
+	err = s.pieceRepo.DeleteByBundleNo(ctx, batch.BedNo, batch.BundleNo)
+	if err != nil {
+		// 记录错误但不中断流程
+		fmt.Printf("删除裁片监控记录失败: %v\n", err)
 	}
 
 	// 更新任务统计

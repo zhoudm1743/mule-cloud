@@ -3,7 +3,41 @@
  */
 
 // API基础地址（根据实际情况修改）
-const BASE_URL = 'http://localhost:8080/api'; // 网关地址
+const BASE_URL = 'https://dev.inzj.cn/api'; // 网关地址
+
+// Loading 计数器，防止并发请求导致的 hideLoading 错误
+let loadingCount = 0;
+
+/**
+ * 显示 Loading
+ */
+function showLoading(title = '加载中...') {
+	if (loadingCount === 0) {
+		uni.showLoading({
+			title,
+			mask: true
+		});
+	}
+	loadingCount++;
+}
+
+/**
+ * 隐藏 Loading
+ */
+function hideLoading() {
+	if (loadingCount <= 0) return;
+	loadingCount--;
+	if (loadingCount === 0) {
+		// 使用 setTimeout 延迟隐藏，避免与 showToast 冲突
+		setTimeout(() => {
+			try {
+				uni.hideLoading();
+			} catch (e) {
+				// 忽略错误
+			}
+		}, 100);
+	}
+}
 
 /**
  * 发起请求
@@ -11,8 +45,9 @@ const BASE_URL = 'http://localhost:8080/api'; // 网关地址
  */
 function request(options) {
 	return new Promise((resolve, reject) => {
-		// 获取token
+		// 获取token和租户信息
 		const token = uni.getStorageSync('token');
+		const currentTenant = uni.getStorageSync('currentTenant');
 		
 		// 完整URL
 		const url = BASE_URL + options.url;
@@ -28,12 +63,14 @@ function request(options) {
 			header['Authorization'] = `Bearer ${token}`;
 		}
 		
+		// 添加租户代码
+		if (currentTenant && currentTenant.tenant_code) {
+			header['X-Tenant-Code'] = currentTenant.tenant_code;
+		}
+		
 		// 显示加载提示
 		if (options.loading !== false) {
-			uni.showLoading({
-				title: options.loadingText || '加载中...',
-				mask: true
-			});
+			showLoading(options.loadingText || '加载中...');
 		}
 		
 		uni.request({
@@ -45,7 +82,7 @@ function request(options) {
 			success: (res) => {
 				// 隐藏加载提示
 				if (options.loading !== false) {
-					uni.hideLoading();
+					hideLoading();
 				}
 				
 				// 统一处理响应
@@ -53,7 +90,7 @@ function request(options) {
 					// 后端统一响应格式：{ code, data, message }
 					// 兼容 code: 0 和 code: 200 两种成功状态
 					if (res.data.code === 200 || res.data.code === 0) {
-						resolve(res.data.data);
+						resolve(res.data);
 					} else {
 						// 业务错误
 						const errMsg = res.data.msg || res.data.message || '请求失败';
@@ -88,7 +125,7 @@ function request(options) {
 			fail: (err) => {
 				// 隐藏加载提示
 				if (options.loading !== false) {
-					uni.hideLoading();
+					hideLoading();
 				}
 				
 				// 网络错误

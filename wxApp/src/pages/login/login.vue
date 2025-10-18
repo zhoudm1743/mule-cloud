@@ -79,23 +79,11 @@ const handleWechatLogin = async () => {
 
 	loading.value = true
 	try {
-		// 获取用户信息（新版API）
-		let userProfile = null
-		try {
-			// #ifdef MP-WEIXIN
-			const profileRes = await uni.getUserProfile({
-				desc: '用于完善用户资料',
-				lang: 'zh_CN'
-			})
-			userProfile = profileRes.userInfo
-			console.log('获取用户信息成功', userProfile)
-			// #endif
-		} catch (e) {
-			console.log('用户拒绝授权或获取失败，继续登录', e)
-		}
+		// 注意：由于微信隐私政策调整，getUserProfile已废弃，无法获取真实昵称和头像
+		// 现在直接使用code登录，登录后引导用户在个人资料页面完善信息
 		
-		// 调用登录
-		const res = await userStore.login(userProfile)
+		// 调用登录（不传用户信息）
+		const res = await userStore.login()
 
 		// 根据响应处理不同情况
 		if (res.need_bind_tenant) {
@@ -122,11 +110,35 @@ const handleWechatLogin = async () => {
 				icon: 'success'
 			})
 
-		setTimeout(() => {
-			uni.reLaunch({
-				url: '/pages/index/index'
-			})
-		}, 1000)
+			// 检查是否需要完善资料
+			const needCompleteProfile = !res.user_info.nickname || res.user_info.nickname === '微信用户'
+			
+			setTimeout(() => {
+				if (needCompleteProfile) {
+					// 首次登录或未完善资料，引导用户完善资料
+					uni.showModal({
+						title: '完善资料',
+						content: '为了更好地为您服务，请完善您的个人资料',
+						confirmText: '去完善',
+						cancelText: '稍后',
+						success: (modalRes) => {
+							if (modalRes.confirm) {
+								uni.reLaunch({
+									url: '/pages/edit-profile/edit-profile'
+								})
+							} else {
+								uni.reLaunch({
+									url: '/pages/index/index'
+								})
+							}
+						}
+					})
+				} else {
+					uni.reLaunch({
+						url: '/pages/index/index'
+					})
+				}
+			}, 1000)
 		}
 	} catch (error) {
 		console.error('登录失败', error)

@@ -16,14 +16,9 @@ const pageSize = ref(10)
 const total = ref(0)
 
 // 分页处理函数
-function handlePageChange(p: number) {
+function handlePageChange(p: number, ps: number) {
   page.value = p
-  fetchData()
-}
-
-function handlePageSizeChange(ps: number) {
   pageSize.value = ps
-  page.value = 1
   fetchData()
 }
 
@@ -304,7 +299,7 @@ onMounted(() => {
           :scroll-x="1800"
           :row-key="(row: Api.Order.StyleInfo) => row.id"
         />
-        <Pagination :count="total" :page="page" :page-size="pageSize" @change="handlePageChange" @update-page-size="handlePageSizeChange" />
+        <Pagination :count="total" @change="handlePageChange" />
       </NSpace>
     </NCard>
 

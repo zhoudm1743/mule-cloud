@@ -34,24 +34,29 @@ func BindAll(c *gin.Context, req interface{}) error {
 		return fmt.Errorf("参数不能为 nil")
 	}
 
-	var errors []string
-
-	// 1. 绑定 URI 参数（如果有 uri tag）
+	// 1. 绑定 URI 参数（如果有 uri tag）- 使用 MustBindWith 跳过验证
 	if hasURITags(req) {
 		if err := c.ShouldBindUri(req); err != nil {
-			// 只有在真正有 uri 标签但绑定失败时才记录错误
-			if !isNoURIParamsError(err) {
-				errors = append(errors, fmt.Sprintf("URI参数绑定失败: %v", err))
+			// 检查是否是验证错误（required等），这些错误稍后统一处理
+			if _, ok := err.(validator.ValidationErrors); !ok {
+				// 不是验证错误，可能是URI参数不存在或格式错误
+				if !isNoURIParamsError(err) {
+					return fmt.Errorf("URI参数绑定失败: %v", err)
+				}
 			}
+			// 验证错误暂时忽略，等所有参数绑定完成后统一验证
 		}
 	}
 
 	// 2. 绑定 Query 参数（如果有 form tag 或 query tag）
 	if hasQueryTags(req) {
 		if err := c.ShouldBindQuery(req); err != nil {
-			// Query 参数可选，不强制要求
-			if !isNoQueryParamsError(err) {
-				errors = append(errors, fmt.Sprintf("Query参数绑定失败: %v", err))
+			// 检查是否是验证错误
+			if _, ok := err.(validator.ValidationErrors); !ok {
+				// Query 参数可选，不强制要求
+				if !isNoQueryParamsError(err) {
+					return fmt.Errorf("Query参数绑定失败: %v", err)
+				}
 			}
 		}
 	}
@@ -59,9 +64,12 @@ func BindAll(c *gin.Context, req interface{}) error {
 	// 3. 绑定 Header 参数（如果有 header tag）
 	if hasHeaderTags(req) {
 		if err := c.ShouldBindHeader(req); err != nil {
-			// Header 参数可选
-			if !isNoHeaderParamsError(err) {
-				errors = append(errors, fmt.Sprintf("Header参数绑定失败: %v", err))
+			// 检查是否是验证错误
+			if _, ok := err.(validator.ValidationErrors); !ok {
+				// Header 参数可选
+				if !isNoHeaderParamsError(err) {
+					return fmt.Errorf("Header参数绑定失败: %v", err)
+				}
 			}
 		}
 	}
@@ -72,14 +80,19 @@ func BindAll(c *gin.Context, req interface{}) error {
 	if contentType != "" && c.Request.ContentLength > 0 {
 		// 有请求体时才绑定
 		if err := c.ShouldBind(req); err != nil {
-			// Body 参数绑定失败通常是必须处理的错误
-			return FormatValidationError(err)
+			// 检查是否是验证错误
+			if _, ok := err.(validator.ValidationErrors); ok {
+				// 是验证错误，统一在最后处理
+			} else {
+				// 不是验证错误，是JSON解析错误等，直接返回
+				return FormatValidationError(err)
+			}
 		}
 	}
 
-	// 如果有非致命错误，也返回（但通常这些会被忽略）
-	if len(errors) > 0 {
-		return fmt.Errorf("%s", strings.Join(errors, "; "))
+	// 5. 所有参数绑定完成后，统一进行验证
+	if err := validate.Struct(req); err != nil {
+		return FormatValidationError(err)
 	}
 
 	return nil

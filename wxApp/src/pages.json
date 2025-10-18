@@ -60,8 +60,40 @@
 				"navigationBarTextStyle": "white",
 				"navigationBarBackgroundColor": "#5EA3F2"
 			}
+		},
+		{
+			"path": "pages/report/detail",
+			"style": {
+				"navigationBarTitleText": "工序上报",
+				"navigationBarTextStyle": "white",
+				"navigationBarBackgroundColor": "#5EA3F2"
+			}
+		},
+	{
+		"path": "pages/report/history",
+		"style": {
+			"navigationBarTitleText": "上报记录",
+			"navigationBarTextStyle": "white",
+			"navigationBarBackgroundColor": "#5EA3F2"
 		}
-	],
+	},
+	{
+		"path": "pages/quality/inspection",
+		"style": {
+			"navigationBarTitleText": "质检",
+			"navigationBarTextStyle": "white",
+			"navigationBarBackgroundColor": "#5EA3F2"
+		}
+	},
+	{
+		"path": "pages/quality/rework",
+		"style": {
+			"navigationBarTitleText": "返工管理",
+			"navigationBarTextStyle": "white",
+			"navigationBarBackgroundColor": "#5EA3F2"
+		}
+	}
+],
 	"globalStyle": {
 		"navigationBarTextStyle": "white",
 		"navigationBarTitleText": "智能工厂",

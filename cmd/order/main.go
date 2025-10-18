@@ -13,6 +13,8 @@ import (
 
 	"mule-cloud/app/order/services"
 	"mule-cloud/app/order/transport"
+	workflowServices "mule-cloud/app/workflow/services"
+	workflowTransport "mule-cloud/app/workflow/transport"
 	"mule-cloud/internal/repository"
 
 	jwtPkg "mule-cloud/core/jwt"
@@ -72,6 +74,8 @@ func main() {
 		repository.NewOrderRepository(),
 	)
 	commonSvc := services.NewCommonService()
+	workflowSvc := workflowServices.NewWorkflowService()
+	designerSvc := workflowServices.NewWorkflowDesignerService()
 
 	// 初始化路由
 	gin.SetMode(cfg.Server.Mode)
@@ -101,6 +105,10 @@ func main() {
 			orders.PUT("/:id", transport.UpdateOrderHandler(orderSvc))                    // 更新订单
 			orders.POST("/:id/copy", transport.CopyOrderHandler(orderSvc))                // 复制订单
 			orders.DELETE("/:id", transport.DeleteOrderHandler(orderSvc))                 // 删除订单
+			// 工作流相关
+			orders.POST("/:id/workflow/transition", transport.TransitionOrderWorkflowHandler(orderSvc))      // 执行工作流状态转换
+			orders.GET("/:id/workflow/state", transport.GetOrderWorkflowStateHandler(orderSvc))              // 获取工作流状态
+			orders.GET("/:id/workflow/transitions", transport.GetOrderAvailableTransitionsHandler(orderSvc)) // 获取可用转换
 		}
 
 		// 款式路由
@@ -144,6 +152,34 @@ func main() {
 				pieces.GET("", transport.ListCuttingPiecesHandler(cuttingSvc))                       // 裁片列表
 				pieces.GET("/:id", transport.GetCuttingPieceHandler(cuttingSvc))                     // 获取裁片详情
 				pieces.PUT("/:id/progress", transport.UpdateCuttingPieceProgressHandler(cuttingSvc)) // 更新裁片进度
+			}
+		}
+
+		// 工作流路由
+		workflow := order.Group("/workflow")
+		{
+			workflow.GET("/definition", workflowTransport.GetWorkflowDefinitionHandler(workflowSvc))              // 获取工作流定义
+			workflow.GET("/mermaid", workflowTransport.GetMermaidDiagramHandler(workflowSvc))                     // 获取Mermaid流程图
+			workflow.GET("/rules", workflowTransport.GetTransitionRulesHandler(workflowSvc))                      // 获取转换规则
+			workflow.GET("/orders/:order_id/status", workflowTransport.GetOrderStatusHandler(workflowSvc))        // 获取订单状态
+			workflow.GET("/orders/:order_id/history", workflowTransport.GetOrderHistoryHandler(workflowSvc))      // 获取状态历史
+			workflow.GET("/orders/:order_id/rollbacks", workflowTransport.GetRollbackHistoryHandler(workflowSvc)) // 获取回滚历史
+			workflow.POST("/transition", workflowTransport.TransitionOrderHandler(workflowSvc))                   // 执行状态转换
+			workflow.POST("/rollback", workflowTransport.RollbackOrderHandler(workflowSvc))                       // 回滚状态
+
+			// 工作流设计器路由
+			designer := workflow.Group("/designer")
+			{
+				designer.GET("/definitions", workflowTransport.ListWorkflowDefinitionsHandler(designerSvc))                      // 获取工作流定义列表
+				designer.POST("/definitions", workflowTransport.CreateWorkflowDefinitionHandler(designerSvc))                    // 创建工作流定义
+				designer.GET("/definitions/:id", workflowTransport.GetDesignerDefinitionHandler(designerSvc))                    // 获取工作流定义详情
+				designer.PUT("/definitions/:id", workflowTransport.UpdateWorkflowDefinitionHandler(designerSvc))                 // 更新工作流定义
+				designer.DELETE("/definitions/:id", workflowTransport.DeleteWorkflowDefinitionHandler(designerSvc))              // 删除工作流定义
+				designer.POST("/definitions/:id/activate", workflowTransport.ActivateWorkflowDefinitionHandler(designerSvc))     // 激活工作流
+				designer.POST("/definitions/:id/deactivate", workflowTransport.DeactivateWorkflowDefinitionHandler(designerSvc)) // 停用工作流
+				designer.GET("/instances", workflowTransport.GetWorkflowInstanceHandler(designerSvc))                            // 获取工作流实例
+				designer.POST("/execute", workflowTransport.ExecuteTransitionHandler(designerSvc))                               // 执行工作流转换
+				designer.GET("/templates", workflowTransport.GetWorkflowTemplatesHandler())                                      // 获取工作流模板
 			}
 		}
 	}

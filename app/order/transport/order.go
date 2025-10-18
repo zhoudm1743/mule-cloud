@@ -178,3 +178,63 @@ func DeleteOrderHandler(svc services.IOrderService) gin.HandlerFunc {
 		response.Success(c, resp)
 	}
 }
+
+// TransitionOrderWorkflowHandler 执行订单工作流状态转换
+func TransitionOrderWorkflowHandler(svc services.IOrderService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.OrderWorkflowTransitionRequest
+		if err := binding.BindAll(c, &req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		ep := endpoint.TransitionOrderWorkflowEndpoint(svc)
+		resp, err := ep(c.Request.Context(), req)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}
+
+// GetOrderWorkflowStateHandler 获取订单工作流状态
+func GetOrderWorkflowStateHandler(svc services.IOrderService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.OrderListRequest // 复用，只需要ID
+		if err := binding.BindAll(c, &req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		ep := endpoint.GetOrderWorkflowStateEndpoint(svc)
+		resp, err := ep(c.Request.Context(), req)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}
+
+// GetOrderAvailableTransitionsHandler 获取订单可用的状态转换
+func GetOrderAvailableTransitionsHandler(svc services.IOrderService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		var req dto.OrderListRequest // 复用，只需要ID
+		if err := binding.BindAll(c, &req); err != nil {
+			response.Error(c, "参数错误: "+err.Error())
+			return
+		}
+
+		ep := endpoint.GetOrderAvailableTransitionsEndpoint(svc)
+		resp, err := ep(c.Request.Context(), req)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}

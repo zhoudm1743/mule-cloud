@@ -153,3 +153,20 @@ export function fetchCuttingPieceDetail(id: string) {
 export function updateCuttingPieceProgress(id: string, data: Api.Order.UpdateCuttingPieceProgressRequest) {
   return request.Put<Service.ResponseResult<any>>(`/order/cutting/pieces/${id}/progress`, data)
 }
+
+// ==================== 订单工作流 (Order Workflow) ====================
+
+// 获取订单工作流状态
+export function fetchOrderWorkflowState(orderId: string) {
+  return request.Get<Service.ResponseResult<Api.Order.WorkflowStateResponse>>(`/order/orders/${orderId}/workflow/state`)
+}
+
+// 获取订单可用的状态转换
+export function fetchOrderAvailableTransitions(orderId: string) {
+  return request.Get<Service.ResponseResult<Api.Order.WorkflowTransitionsResponse>>(`/order/orders/${orderId}/workflow/transitions`)
+}
+
+// 执行订单工作流状态转换
+export function executeOrderWorkflowTransition(orderId: string, data: Api.Order.WorkflowTransitionRequest) {
+  return request.Post<Service.ResponseResult<any>>(`/order/orders/${orderId}/workflow/transition`, data)
+}

@@ -22,6 +22,10 @@ type IOrderService interface {
 	Update(ctx context.Context, req dto.OrderUpdateRequest) (*models.Order, error)
 	Copy(ctx context.Context, id string, isRelated bool, relationType, relationRemark string) (*models.Order, error)
 	Delete(ctx context.Context, id string) error
+	// 工作流相关
+	TransitionWorkflowState(ctx context.Context, req dto.OrderWorkflowTransitionRequest) error
+	GetWorkflowState(ctx context.Context, id string) (*models.WorkflowInstance, error)
+	GetAvailableTransitions(ctx context.Context, id string) ([]models.WorkflowTransition, error)
 }
 
 // OrderService 订单服务实现
@@ -31,6 +35,7 @@ type OrderService struct {
 	cuttingTaskRepo  repository.CuttingTaskRepository
 	cuttingBatchRepo repository.CuttingBatchRepository
 	cuttingPieceRepo repository.CuttingPieceRepository
+	workflowEngine   IWorkflowEngineService
 }
 
 // NewOrderService 创建订单服务
@@ -41,6 +46,7 @@ func NewOrderService() IOrderService {
 		cuttingTaskRepo:  repository.NewCuttingTaskRepository(),
 		cuttingBatchRepo: repository.NewCuttingBatchRepository(),
 		cuttingPieceRepo: repository.NewCuttingPieceRepository(),
+		workflowEngine:   NewWorkflowEngineService(),
 	}
 }
 
@@ -169,6 +175,9 @@ func (s *OrderService) Create(ctx context.Context, req dto.OrderCreateRequest) (
 	if err != nil {
 		return nil, err
 	}
+
+	// 初始化工作流（使用默认的订单工作流）
+	_ = s.workflowEngine.InitOrderWorkflow(ctx, order.ID, "order_basic")
 
 	return order, nil
 }
@@ -424,4 +433,19 @@ func (s *OrderService) Delete(ctx context.Context, id string) error {
 
 	// 4. 最后删除订单
 	return s.repo.Delete(ctx, id)
+}
+
+// TransitionWorkflowState 执行工作流状态转换
+func (s *OrderService) TransitionWorkflowState(ctx context.Context, req dto.OrderWorkflowTransitionRequest) error {
+	return s.workflowEngine.TransitionOrderState(ctx, req.ID, req.Event, req.Operator, req.Reason, req.Metadata)
+}
+
+// GetWorkflowState 获取订单工作流状态
+func (s *OrderService) GetWorkflowState(ctx context.Context, id string) (*models.WorkflowInstance, error) {
+	return s.workflowEngine.GetOrderWorkflowState(ctx, id)
+}
+
+// GetAvailableTransitions 获取订单可用的状态转换
+func (s *OrderService) GetAvailableTransitions(ctx context.Context, id string) ([]models.WorkflowTransition, error) {
+	return s.workflowEngine.GetAvailableTransitions(ctx, id)
 }

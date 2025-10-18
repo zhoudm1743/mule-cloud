@@ -40,8 +40,11 @@ type CuttingPieceRepository interface {
 	Create(ctx context.Context, piece *models.CuttingPiece) error
 	Update(ctx context.Context, id string, piece *models.CuttingPiece) error
 	UpdateByOrderID(ctx context.Context, orderID string, update bson.M) error
+	IncrementProgressByBundleNo(ctx context.Context, bedNo, bundleNo string) error
+	DecrementProgressByBundleNo(ctx context.Context, bedNo, bundleNo string) error
 	GetByID(ctx context.Context, id string) (*models.CuttingPiece, error)
 	DeleteByOrderID(ctx context.Context, orderID string) error
+	DeleteByBundleNo(ctx context.Context, bedNo, bundleNo string) error
 	List(ctx context.Context, page, pageSize int, orderID, contractNo, bedNo, bundleNo string) ([]*models.CuttingPiece, int64, error)
 }
 
@@ -242,10 +245,11 @@ func (r *cuttingBatchRepository) List(ctx context.Context, page, pageSize int, t
 
 	skip := int64((page - 1) * pageSize)
 	limit := int64(pageSize)
-	// 排序：先按床号升序，再按扎号降序（扎号从大到小）
+	// 排序：先按床号升序，再按扎号升序，最后按创建时间升序
 	opts := options.Find().SetSkip(skip).SetLimit(limit).SetSort(bson.D{
 		{Key: "bed_no", Value: 1},     // 床号升序
-		{Key: "bundle_no", Value: -1}, // 扎号降序
+		{Key: "bundle_no", Value: 1},  // 扎号升序
+		{Key: "created_at", Value: 1}, // 创建时间升序
 	})
 
 	cursor, err := collection.Find(ctx, filter, opts)
@@ -298,9 +302,49 @@ func (r *cuttingPieceRepository) UpdateByOrderID(ctx context.Context, orderID st
 	return err
 }
 
+func (r *cuttingPieceRepository) IncrementProgressByBundleNo(ctx context.Context, bedNo, bundleNo string) error {
+	collection := r.GetCollectionWithContext(ctx)
+	filter := bson.M{
+		"bed_no":    bedNo,
+		"bundle_no": bundleNo,
+	}
+	update := bson.M{
+		"$inc": bson.M{
+			"progress": 1, // 每次上报工序，进度+1
+		},
+	}
+	_, err := collection.UpdateMany(ctx, filter, update)
+	return err
+}
+
+func (r *cuttingPieceRepository) DecrementProgressByBundleNo(ctx context.Context, bedNo, bundleNo string) error {
+	collection := r.GetCollectionWithContext(ctx)
+	filter := bson.M{
+		"bed_no":    bedNo,
+		"bundle_no": bundleNo,
+	}
+	update := bson.M{
+		"$inc": bson.M{
+			"progress": -1, // 删除上报记录时，进度-1
+		},
+	}
+	_, err := collection.UpdateMany(ctx, filter, update)
+	return err
+}
+
 func (r *cuttingPieceRepository) DeleteByOrderID(ctx context.Context, orderID string) error {
 	collection := r.GetCollectionWithContext(ctx)
 	_, err := collection.DeleteMany(ctx, bson.M{"order_id": orderID})
+	return err
+}
+
+func (r *cuttingPieceRepository) DeleteByBundleNo(ctx context.Context, bedNo, bundleNo string) error {
+	collection := r.GetCollectionWithContext(ctx)
+	filter := bson.M{
+		"bed_no":    bedNo,
+		"bundle_no": bundleNo,
+	}
+	_, err := collection.DeleteMany(ctx, filter)
 	return err
 }
 
@@ -338,7 +382,12 @@ func (r *cuttingPieceRepository) List(ctx context.Context, page, pageSize int, o
 
 	skip := int64((page - 1) * pageSize)
 	limit := int64(pageSize)
-	opts := options.Find().SetSkip(skip).SetLimit(limit).SetSort(bson.D{{Key: "created_at", Value: -1}})
+	// 排序：先按床号升序，再按扎号升序，最后按创建时间升序
+	opts := options.Find().SetSkip(skip).SetLimit(limit).SetSort(bson.D{
+		{Key: "bed_no", Value: 1},     // 床号升序
+		{Key: "bundle_no", Value: 1},  // 扎号升序
+		{Key: "created_at", Value: 1}, // 创建时间升序
+	})
 
 	cursor, err := collection.Find(ctx, filter, opts)
 	if err != nil {

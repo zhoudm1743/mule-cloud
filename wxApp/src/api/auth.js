@@ -83,3 +83,51 @@ export function unbindPhone() {
 	return del('/miniapp/wechat/phone')
 }
 
+/**
+ * 上传文件（头像等）
+ * @param {String} filePath 本地文件路径
+ * @param {String} businessType 业务类型（如：avatar, document等）
+ */
+export function uploadFile(filePath, businessType = 'avatar') {
+	return new Promise((resolve, reject) => {
+		const token = uni.getStorageSync('token')
+		const currentTenant = uni.getStorageSync('currentTenant')
+		
+		uni.showLoading({
+			title: '上传中...',
+			mask: true
+		})
+		
+		uni.uploadFile({
+			url: 'https://dev.inzj.cn/api/admin/common/files/upload',
+			filePath: filePath,
+			name: 'file',
+			formData: {
+				business_type: businessType
+			},
+			header: {
+				'Authorization': 'Bearer ' + token,
+				'X-Tenant-Code': currentTenant?.tenant_code || ''
+			},
+			success: (res) => {
+				uni.hideLoading()
+				if (res.statusCode === 200) {
+					const result = JSON.parse(res.data)
+					// 后端统一响应格式：{ code, data, message }
+					if (result.code === 200 || result.code === 0) {
+						resolve(result.data)
+					} else {
+						reject(new Error(result.msg || result.message || '上传失败'))
+					}
+				} else {
+					reject(new Error('上传失败'))
+				}
+			},
+			fail: (error) => {
+				uni.hideLoading()
+				reject(error)
+			}
+		})
+	})
+}
+

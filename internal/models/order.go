@@ -2,29 +2,33 @@ package models
 
 // Order 订单模型
 type Order struct {
-	ID            string           `json:"id" bson:"_id,omitempty"`
-	ContractNo    string           `json:"contract_no" bson:"contract_no"`         // 合同号
-	StyleID       string           `json:"style_id" bson:"style_id"`               // 款式ID
-	StyleNo       string           `json:"style_no" bson:"style_no"`               // 款号
-	StyleName     string           `json:"style_name" bson:"style_name"`           // 款名
-	StyleImage    string           `json:"style_image" bson:"style_image"`         // 款式图片
-	CustomerID    string           `json:"customer_id" bson:"customer_id"`         // 客户ID
-	CustomerName  string           `json:"customer_name" bson:"customer_name"`     // 客户名称
-	SalesmanID    string           `json:"salesman_id" bson:"salesman_id"`         // 业务员ID
-	SalesmanName  string           `json:"salesman_name" bson:"salesman_name"`     // 业务员名称
-	OrderTypeID   string           `json:"order_type_id" bson:"order_type_id"`     // 订单类型ID
-	OrderTypeName string           `json:"order_type_name" bson:"order_type_name"` // 订单类型名称
-	Quantity      int              `json:"quantity" bson:"quantity"`               // 总数量
-	UnitPrice     float64          `json:"unit_price" bson:"unit_price"`           // 单价
-	TotalAmount   float64          `json:"total_amount" bson:"total_amount"`       // 总金额
-	DeliveryDate  string           `json:"delivery_date" bson:"delivery_date"`     // 交货日期
-	Progress      float64          `json:"progress" bson:"progress"`               // 进度百分比
-	Status        int              `json:"status" bson:"status"`                   // 状态：0-草稿 1-已下单 2-生产中 3-已完成 4-已取消
-	Remark        string           `json:"remark" bson:"remark"`                   // 备注
-	Colors        []string         `json:"colors" bson:"colors"`                   // 颜色列表
-	Sizes         []string         `json:"sizes" bson:"sizes"`                     // 尺码列表
-	Items         []OrderItem      `json:"items" bson:"items"`                     // 订单明细（颜色+尺码组合）
-	Procedures    []OrderProcedure `json:"procedures" bson:"procedures"`           // 工序清单
+	ID            string  `json:"id" bson:"_id,omitempty"`
+	ContractNo    string  `json:"contract_no" bson:"contract_no"`         // 合同号
+	StyleID       string  `json:"style_id" bson:"style_id"`               // 款式ID
+	StyleNo       string  `json:"style_no" bson:"style_no"`               // 款号
+	StyleName     string  `json:"style_name" bson:"style_name"`           // 款名
+	StyleImage    string  `json:"style_image" bson:"style_image"`         // 款式图片
+	CustomerID    string  `json:"customer_id" bson:"customer_id"`         // 客户ID
+	CustomerName  string  `json:"customer_name" bson:"customer_name"`     // 客户名称
+	SalesmanID    string  `json:"salesman_id" bson:"salesman_id"`         // 业务员ID
+	SalesmanName  string  `json:"salesman_name" bson:"salesman_name"`     // 业务员名称
+	OrderTypeID   string  `json:"order_type_id" bson:"order_type_id"`     // 订单类型ID
+	OrderTypeName string  `json:"order_type_name" bson:"order_type_name"` // 订单类型名称
+	Quantity      int     `json:"quantity" bson:"quantity"`               // 总数量
+	UnitPrice     float64 `json:"unit_price" bson:"unit_price"`           // 单价
+	TotalAmount   float64 `json:"total_amount" bson:"total_amount"`       // 总金额
+	DeliveryDate  string  `json:"delivery_date" bson:"delivery_date"`     // 交货日期
+	Progress      float64 `json:"progress" bson:"progress"`               // 进度百分比
+	Status        int     `json:"status" bson:"status"`                   // 状态：0-草稿 1-已下单 2-生产中 3-已完成 4-已取消
+	Remark        string  `json:"remark" bson:"remark"`                   // 备注
+	// 工作流相关
+	WorkflowCode     string           `json:"workflow_code" bson:"workflow_code"`         // 工作流定义编码
+	WorkflowInstance string           `json:"workflow_instance" bson:"workflow_instance"` // 工作流实例ID
+	WorkflowState    string           `json:"workflow_state" bson:"workflow_state"`       // 当前工作流状态
+	Colors           []string         `json:"colors" bson:"colors"`                       // 颜色列表
+	Sizes            []string         `json:"sizes" bson:"sizes"`                         // 尺码列表
+	Items            []OrderItem      `json:"items" bson:"items"`                         // 订单明细（颜色+尺码组合）
+	Procedures       []OrderProcedure `json:"procedures" bson:"procedures"`               // 工序清单
 	// 订单关联关系
 	ParentOrderID  string `json:"parent_order_id" bson:"parent_order_id"` // 父订单ID（关联的原订单）
 	RelationType   string `json:"relation_type" bson:"relation_type"`     // 关联类型：copy-复制 add-追加

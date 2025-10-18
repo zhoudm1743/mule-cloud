@@ -23,14 +23,9 @@ const initialSearchForm = {
 const searchForm = ref({ ...initialSearchForm })
 
 // 分页处理
-function handlePageChange(p: number) {
+function handlePageChange(p: number, ps: number) {
   page.value = p
-  fetchTenants()
-}
-
-function handlePageSizeChange(ps: number) {
   pageSize.value = ps
-  page.value = 1
   fetchTenants()
 }
 
@@ -270,7 +265,7 @@ onMounted(() => {
           :scroll-x="1400"
           :row-key="(row: Api.Tenant.TenantInfo) => row.id"
         />
-        <Pagination :count="total" :page="page" :page-size="pageSize" @change="handlePageChange" @update-page-size="handlePageSizeChange" />
+        <Pagination :count="total" @change="handlePageChange" />
       </NSpace>
     </NCard>
 

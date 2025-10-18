@@ -29,14 +29,9 @@ const searchForm = ref({
 })
 
 // 分页处理函数
-function handlePageChange(p: number) {
+function handlePageChange(p: number, ps: number) {
   page.value = p
-  fetchData()
-}
-
-function handlePageSizeChange(ps: number) {
   pageSize.value = ps
-  page.value = 1
   fetchData()
 }
 
@@ -334,7 +329,7 @@ defineExpose({ open })
               :row-key="(row: Api.Order.CuttingBatchInfo) => row.id"
               v-model:checked-row-keys="checkedRowKeys"
             />
-            <Pagination :count="total" :page="page" :page-size="pageSize" @change="handlePageChange" @update-page-size="handlePageSizeChange" />
+            <Pagination :count="total" @change="handlePageChange" />
           </NSpace>
         </NCard>
       </NSpace>

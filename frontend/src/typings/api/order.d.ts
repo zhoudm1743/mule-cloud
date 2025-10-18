@@ -44,6 +44,10 @@ namespace Api {
       sizes: string[]
       items: OrderItem[]
       procedures: OrderProcedure[]
+      // 工作流相关
+      workflow_code?: string
+      workflow_instance?: string
+      workflow_state?: string
       created_at: number
       updated_at: number
     }
@@ -374,6 +378,80 @@ namespace Api {
     /* 更新裁片进度请求 */
     interface UpdateCuttingPieceProgressRequest {
       progress: number
+    }
+
+    /* ========== 工作流相关 ========== */
+
+    /* 工作流历史记录 */
+    interface WorkflowHistory {
+      from_state: string
+      to_state: string
+      event: string
+      operator: string
+      reason: string
+      timestamp: number
+      metadata?: Record<string, any>
+    }
+
+    /* 工作流实例 */
+    interface WorkflowInstance {
+      id: string
+      workflow_id: string
+      entity_type: string
+      entity_id: string
+      current_state: string
+      history: WorkflowHistory[]
+      variables: Record<string, any>
+      created_at: number
+      updated_at: number
+    }
+
+    /* 转换条件 */
+    interface TransitionCondition {
+      type: string
+      field: string
+      operator: string
+      value: any
+      description?: string
+    }
+
+    /* 转换动作 */
+    interface TransitionAction {
+      type: string
+      field?: string
+      value?: any
+      description?: string
+    }
+
+    /* 工作流转换规则 */
+    interface WorkflowTransition {
+      id: string
+      name: string
+      from_state: string
+      to_state: string
+      event: string
+      conditions: TransitionCondition[]
+      actions: TransitionAction[]
+      require_role?: string
+      description?: string
+    }
+
+    /* 获取工作流状态响应 */
+    interface WorkflowStateResponse {
+      instance: WorkflowInstance
+    }
+
+    /* 获取可用转换响应 */
+    interface WorkflowTransitionsResponse {
+      transitions: WorkflowTransition[]
+    }
+
+    /* 执行工作流转换请求 */
+    interface WorkflowTransitionRequest {
+      event: string
+      operator?: string
+      reason?: string
+      metadata?: Record<string, any>
     }
   }
 }

@@ -106,3 +106,39 @@ func DeleteOrderEndpoint(svc services.IOrderService) endpoint.Endpoint {
 		return map[string]string{"message": "删除成功"}, nil
 	}
 }
+
+// TransitionOrderWorkflowEndpoint 执行订单工作流状态转换端点
+func TransitionOrderWorkflowEndpoint(svc services.IOrderService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(dto.OrderWorkflowTransitionRequest)
+		err := svc.TransitionWorkflowState(ctx, req)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]string{"message": "状态转换成功"}, nil
+	}
+}
+
+// GetOrderWorkflowStateEndpoint 获取订单工作流状态端点
+func GetOrderWorkflowStateEndpoint(svc services.IOrderService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(dto.OrderListRequest)
+		instance, err := svc.GetWorkflowState(ctx, req.ID)
+		if err != nil {
+			return nil, err
+		}
+		return dto.OrderWorkflowStateResponse{Instance: instance}, nil
+	}
+}
+
+// GetOrderAvailableTransitionsEndpoint 获取订单可用状态转换端点
+func GetOrderAvailableTransitionsEndpoint(svc services.IOrderService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		req := request.(dto.OrderListRequest)
+		transitions, err := svc.GetAvailableTransitions(ctx, req.ID)
+		if err != nil {
+			return nil, err
+		}
+		return dto.OrderWorkflowTransitionsResponse{Transitions: transitions}, nil
+	}
+}

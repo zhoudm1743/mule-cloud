@@ -23,14 +23,9 @@ const initialSearchForm = {
 const searchForm = ref({ ...initialSearchForm })
 
 // 分页处理
-function handlePageChange(p: number) {
+function handlePageChange(p: number, ps: number) {
   page.value = p
-  fetchPosts()
-}
-
-function handlePageSizeChange(ps: number) {
   pageSize.value = ps
-  page.value = 1
   fetchPosts()
 }
 
@@ -249,7 +244,7 @@ async function fetchPosts() {
           :loading="loading"
           :scroll-x="1200"
         />
-        <Pagination :count="total" :page="page" :page-size="pageSize" @change="handlePageChange" @update-page-size="handlePageSizeChange" />
+        <Pagination :count="total" @change="handlePageChange" />
       </NSpace>
     </NCard>
 

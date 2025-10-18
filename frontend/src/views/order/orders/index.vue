@@ -6,11 +6,13 @@ import { copyOrder, createCuttingTask, deleteOrder, fetchCuttingTaskByOrderId, f
 import { NAlert, NButton, NFormItem, NImage, NInput, NPopconfirm, NRadio, NRadioGroup, NSpace, NSwitch, NTag, NText } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import TableModal from './components/TableModal.vue'
+import ProgressDrawer from './components/ProgressDrawer.vue'
 
 const { bool: loading, setTrue: startLoading, setFalse: endLoading } = useBoolean(false)
 
 const router = useRouter()
 const tableModalRef = ref()
+const progressDrawerRef = ref()
 const tableData = ref<Api.Order.OrderInfo[]>([])
 const checkedRowKeys = ref<string[]>([])
 const page = ref(1)
@@ -18,14 +20,9 @@ const pageSize = ref(10)
 const total = ref(0)
 
 // 分页处理函数
-function handlePageChange(p: number) {
+function handlePageChange(p: number, ps: number) {
   page.value = p
-  fetchData()
-}
-
-function handlePageSizeChange(ps: number) {
   pageSize.value = ps
-  page.value = 1
   fetchData()
 }
 
@@ -169,6 +166,11 @@ async function handleCreateCutting(order: Api.Order.OrderInfo) {
   }
 }
 
+// 查看订单进度
+function handleViewProgress(order: Api.Order.OrderInfo) {
+  progressDrawerRef.value?.open(order)
+}
+
 const columns: DataTableColumns<Api.Order.OrderInfo> = [
   {
     type: 'selection',
@@ -263,7 +265,7 @@ const columns: DataTableColumns<Api.Order.OrderInfo> = [
   {
     title: '操作',
     key: 'actions',
-    width: 280,
+    width: 350,
     fixed: 'right',
     render: (row) => {
       return (
@@ -287,6 +289,14 @@ const columns: DataTableColumns<Api.Order.OrderInfo> = [
             onClick={() => handleCreateCutting(row)}
           >
             裁剪
+          </NButton>
+          <NButton
+            size={'small'}
+            type={'success'}
+            onClick={() => handleViewProgress(row)}
+            disabled={row.status < 2}
+          >
+            进度
           </NButton>
           <NButton
             size={'small'}
@@ -397,7 +407,7 @@ onMounted(() => {
           :scroll-x="2000"
           :row-key="(row: Api.Order.OrderInfo) => row.id"
         />
-        <Pagination :count="total" :page="page" :page-size="pageSize" @change="handlePageChange" @update-page-size="handlePageSizeChange" />
+        <Pagination :count="total" @change="handlePageChange" />
       </NSpace>
     </NCard>
 
@@ -474,6 +484,9 @@ onMounted(() => {
         </NSpace>
       </template>
     </NModal>
+
+    <!-- 进度抽屉 -->
+    <ProgressDrawer ref="progressDrawerRef" />
   </NSpace>
 </template>
 

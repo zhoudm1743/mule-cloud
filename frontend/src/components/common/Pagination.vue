@@ -1,31 +1,44 @@
 <script setup lang="ts">
 interface Props {
   count?: number
+  page?: number
+  pageSize?: number
   align?: 'left' | 'center' | 'right'
 }
-const {
-  count = 0,
-  align = 'right',
-} = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  count: 0,
+  page: 1,
+  pageSize: 10,
+  align: 'right',
+})
 
 const emit = defineEmits<{
   change: [page: number, pageSize: number] // 具名元组语法
 }>()
 
-const page = ref(1)
-const pageSize = ref(10)
+const currentPage = ref(props.page)
+const currentPageSize = ref(props.pageSize)
 const displayOrder: Array<'pages' | 'size-picker' | 'quick-jumper'> = ['size-picker', 'pages']
 
+// 监听 props 变化，同步内部状态
+watch(() => props.page, (newPage) => {
+  currentPage.value = newPage
+})
+
+watch(() => props.pageSize, (newPageSize) => {
+  currentPageSize.value = newPageSize
+})
+
 function changePage() {
-  emit('change', page.value, pageSize.value)
+  emit('change', currentPage.value, currentPageSize.value)
 }
 </script>
 
 <template>
   <div v-if="count > 0" :class="['pagination-wrapper', `pagination-${align}`]">
     <n-pagination
-      v-model:page="page"
-      v-model:page-size="pageSize"
+      v-model:page="currentPage"
+      v-model:page-size="currentPageSize"
       :page-sizes="[10, 20, 30, 50]"
       :item-count="count"
       :display-order="displayOrder"

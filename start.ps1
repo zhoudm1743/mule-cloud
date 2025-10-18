@@ -13,22 +13,62 @@ if (!(Test-Path "go.mod")) {
     exit 1
 }
 
-# 服务定义
-$services = @{
-    "gateway" = @{ Name = "Gateway"; Path = "cmd/gateway/main.go"; Port = 8080; Color = "Green"; Process = $null }
-    "auth"    = @{ Name = "Auth";    Path = "cmd/auth/main.go";    Port = 8081; Color = "Yellow"; Process = $null }
-    "basic"   = @{ Name = "Basic";   Path = "cmd/basic/main.go";   Port = 8082; Color = "Blue"; Process = $null }
-    "common"  = @{ Name = "Common";  Path = "cmd/common/main.go";  Port = 8083; Color = "Magenta"; Process = $null }
-    "perms"   = @{ Name = "Perms";   Path = "cmd/perms/main.go";   Port = 8084; Color = "Cyan"; Process = $null }
-    "order"   = @{ Name = "Order";   Path = "cmd/order/main.go";   Port = 8085; Color = "White"; Process = $null }
-    "miniapp" = @{ Name = "Miniapp"; Path = "cmd/miniapp/main.go"; Port = 8086; Color = "White"; Process = $null }
+# 服务定义 (按启动顺序)
+$services = [ordered]@{
+    "gateway"    = @{ Name = "Gateway";    Path = "cmd/gateway/main.go";    Port = 8080; Color = "Green"; Process = $null }
+    "auth"       = @{ Name = "Auth";       Path = "cmd/auth/main.go";       Port = 8081; Color = "Yellow"; Process = $null }
+    "basic"      = @{ Name = "Basic";      Path = "cmd/basic/main.go";      Port = 8082; Color = "Blue"; Process = $null }
+    "common"     = @{ Name = "Common";     Path = "cmd/common/main.go";     Port = 8083; Color = "Magenta"; Process = $null }
+    "perms"      = @{ Name = "Perms";      Path = "cmd/perms/main.go";      Port = 8084; Color = "Cyan"; Process = $null }
+    "order"      = @{ Name = "Order";      Path = "cmd/order/main.go";      Port = 8085; Color = "White"; Process = $null }
+    "production" = @{ Name = "Production"; Path = "cmd/production/main.go"; Port = 8008; Color = "DarkYellow"; Process = $null }
+    "miniapp"    = @{ Name = "Miniapp";    Path = "cmd/miniapp/main.go";    Port = 8086; Color = "White"; Process = $null }
+}
+
+# 清理所有服务进程
+function Cleanup-AllServices {
+    Write-Host ""
+    Write-Host "Stopping all services..." -ForegroundColor Yellow
+    
+    $stoppedCount = 0
+    foreach ($key in $services.Keys) {
+        $svc = $services[$key]
+        if ($svc.Process -and !$svc.Process.HasExited) {
+            try {
+                $processId = $svc.Process.Id
+                Write-Host "  Stopping $($svc.Name) (PID: $processId)..." -ForegroundColor Gray
+                taskkill /F /T /PID $processId 2>&1 | Out-Null
+                Start-Sleep -Milliseconds 300
+                $stoppedCount++
+            } catch {
+                Write-Host "  Failed to stop $($svc.Name)" -ForegroundColor Red
+            }
+        }
+    }
+    
+    # 额外清理：查找并结束所有相关的 go.exe 进程
+    Write-Host "Cleaning up remaining processes..." -ForegroundColor Gray
+    Get-Process | Where-Object { 
+        $_.ProcessName -eq "go" -or $_.ProcessName -eq "main" 
+    } | ForEach-Object {
+        try {
+            $_.Kill()
+            Write-Host "  Killed process: $($_.ProcessName) (PID: $($_.Id))" -ForegroundColor Gray
+        } catch {
+            # 忽略错误
+        }
+    }
+    
+    Write-Host ""
+    Write-Host "All services stopped! (Stopped: $stoppedCount)" -ForegroundColor Green
+    Write-Host ""
 }
 
 # 启动服务函数
 function Start-Service {
     param([string]$serviceName)
     
-    if (!$services.ContainsKey($serviceName)) {
+    if (!$services.Contains($serviceName)) {
         Write-Host "ERROR: Unknown service '$serviceName'" -ForegroundColor Red
         return
     }
@@ -70,7 +110,7 @@ function Start-Service {
 function Stop-Service {
     param([string]$serviceName)
     
-    if (!$services.ContainsKey($serviceName)) {
+    if (!$services.Contains($serviceName)) {
         Write-Host "ERROR: Unknown service '$serviceName'" -ForegroundColor Red
         return
     }
@@ -132,7 +172,7 @@ function Show-Help {
     Write-Host "  exit                    - Stop all services and exit" -ForegroundColor Gray
     Write-Host ""
     Write-Host "Available Services:" -ForegroundColor Yellow
-    Write-Host "  gateway, auth, basic, common, perms, order" -ForegroundColor Gray
+    Write-Host "  $($services.Keys -join ', ')" -ForegroundColor Gray
     Write-Host ""
 }
 
@@ -142,8 +182,9 @@ Write-Host ""
 try {
     # 启动所有服务
     $index = 1
-    foreach ($key in @("gateway", "auth", "basic", "common", "perms", "order")) {
-        Write-Host "[$index/6] " -NoNewline
+    $totalServices = $services.Count
+    foreach ($key in $services.Keys) {
+        Write-Host "[$index/$totalServices] " -NoNewline
         Start-Service $key
         $index++
     }
@@ -174,7 +215,7 @@ try {
             "restart" {
                 if ($arg -eq "") {
                     Write-Host "Usage: restart <service>" -ForegroundColor Yellow
-                } elseif ($services.ContainsKey($arg)) {
+                } elseif ($services.Contains($arg)) {
                     Write-Host ""
                     Stop-Service $arg
                     Start-Sleep -Milliseconds 500
@@ -182,13 +223,13 @@ try {
                     Write-Host ""
                 } else {
                     Write-Host "Unknown service: $arg" -ForegroundColor Red
-                    Write-Host "Available: gateway, auth, basic, common, perms, order" -ForegroundColor Gray
+                    Write-Host "Available: $($services.Keys -join ', ')" -ForegroundColor Gray
                 }
             }
             "stop" {
                 if ($arg -eq "") {
                     Write-Host "Usage: stop <service>" -ForegroundColor Yellow
-                } elseif ($services.ContainsKey($arg)) {
+                } elseif ($services.Contains($arg)) {
                     Write-Host ""
                     Stop-Service $arg
                     Write-Host ""
@@ -199,7 +240,7 @@ try {
             "start" {
                 if ($arg -eq "") {
                     Write-Host "Usage: start <service>" -ForegroundColor Yellow
-                } elseif ($services.ContainsKey($arg)) {
+                } elseif ($services.Contains($arg)) {
                     Write-Host ""
                     Start-Service $arg
                     Write-Host ""
@@ -226,41 +267,6 @@ try {
 
 } finally {
     # 确保无论如何都会执行清理
-    Write-Host ""
-    Write-Host "Stopping all services..." -ForegroundColor Yellow
-    
-    $stoppedCount = 0
-    foreach ($key in $services.Keys) {
-        $svc = $services[$key]
-        if ($svc.Process -and !$svc.Process.HasExited) {
-            try {
-                $processId = $svc.Process.Id
-                Write-Host "  Stopping $($svc.Name) (PID: $processId)..." -ForegroundColor Gray
-                # 使用 taskkill 停止进程树
-                taskkill /F /T /PID $processId 2>&1 | Out-Null
-                Start-Sleep -Milliseconds 300
-                $stoppedCount++
-            } catch {
-                Write-Host "  Failed to stop $($svc.Name)" -ForegroundColor Red
-            }
-        }
-    }
-    
-    # 额外清理：查找并结束所有相关的 go.exe 进程
-    Write-Host "Cleaning up remaining processes..." -ForegroundColor Gray
-    Get-Process | Where-Object { 
-        $_.ProcessName -eq "go" -or $_.ProcessName -eq "main" 
-    } | ForEach-Object {
-        try {
-            $_.Kill()
-            Write-Host "  Killed process: $($_.ProcessName) (PID: $($_.Id))" -ForegroundColor Gray
-        } catch {
-            # 忽略错误
-        }
-    }
-    
-    Write-Host ""
-    Write-Host "All services stopped! (Stopped: $stoppedCount)" -ForegroundColor Green
-    Write-Host ""
+    Cleanup-AllServices
     Start-Sleep -Seconds 2
 }
