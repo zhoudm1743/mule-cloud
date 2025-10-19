@@ -177,7 +177,7 @@ func (s *OrderService) Create(ctx context.Context, req dto.OrderCreateRequest) (
 	}
 
 	// 初始化工作流（使用默认的订单工作流）
-	_ = s.workflowEngine.InitOrderWorkflow(ctx, order.ID, "order_basic")
+	_ = s.workflowEngine.InitOrderWorkflow(ctx, order.ID, "basic_order")
 
 	return order, nil
 }
@@ -232,7 +232,6 @@ func (s *OrderService) UpdateProcedure(ctx context.Context, req dto.OrderProcedu
 
 	update := bson.M{
 		"procedures": req.Procedures,
-		"status":     1, // 已下单
 		"updated_at": time.Now().Unix(),
 	}
 
@@ -240,6 +239,15 @@ func (s *OrderService) UpdateProcedure(ctx context.Context, req dto.OrderProcedu
 	if err != nil {
 		return nil, err
 	}
+
+	// 🔥 使用工作流提交订单（从草稿 -> 已下单）
+	workflowReq := dto.OrderWorkflowTransitionRequest{
+		ID:       req.ID,
+		Event:    "submit_order",
+		Operator: "system",
+		Reason:   "完成订单工序配置，提交订单",
+	}
+	_ = s.TransitionWorkflowState(ctx, workflowReq)
 
 	return s.repo.Get(ctx, req.ID)
 }

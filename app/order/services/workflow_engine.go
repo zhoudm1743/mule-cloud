@@ -131,9 +131,19 @@ func (s *workflowEngineService) TransitionOrderState(
 		return fmt.Errorf("订单不存在: %v", err)
 	}
 
-	// 检查是否已关联工作流
+	// 检查是否已关联工作流，如果没有则自动初始化
 	if order.WorkflowInstance == "" {
-		return fmt.Errorf("订单未关联工作流实例")
+		// 尝试自动初始化工作流实例
+		err = s.InitOrderWorkflow(ctx, orderID, "basic_order")
+		if err != nil {
+			return fmt.Errorf("自动初始化工作流失败: %v", err)
+		}
+
+		// 重新获取订单
+		order, err = s.orderRepo.Get(ctx, orderID)
+		if err != nil {
+			return fmt.Errorf("重新获取订单失败: %v", err)
+		}
 	}
 
 	// 获取工作流实例
@@ -258,8 +268,19 @@ func (s *workflowEngineService) GetOrderWorkflowState(ctx context.Context, order
 		return nil, fmt.Errorf("订单不存在: %v", err)
 	}
 
+	// 检查是否已关联工作流，如果没有则自动初始化
 	if order.WorkflowInstance == "" {
-		return nil, fmt.Errorf("订单未关联工作流实例")
+		// 尝试自动初始化工作流实例
+		err = s.InitOrderWorkflow(ctx, orderID, "basic_order")
+		if err != nil {
+			return nil, fmt.Errorf("自动初始化工作流失败: %v", err)
+		}
+
+		// 重新获取订单
+		order, err = s.orderRepo.Get(ctx, orderID)
+		if err != nil {
+			return nil, fmt.Errorf("重新获取订单失败: %v", err)
+		}
 	}
 
 	// 获取工作流实例
@@ -274,8 +295,19 @@ func (s *workflowEngineService) GetAvailableTransitions(ctx context.Context, ord
 		return nil, fmt.Errorf("订单不存在: %v", err)
 	}
 
+	// 检查是否已关联工作流，如果没有则自动初始化
 	if order.WorkflowInstance == "" {
-		return nil, fmt.Errorf("订单未关联工作流实例")
+		// 尝试自动初始化工作流实例
+		err = s.InitOrderWorkflow(ctx, orderID, "basic_order")
+		if err != nil {
+			return nil, fmt.Errorf("自动初始化工作流失败: %v", err)
+		}
+
+		// 重新获取订单
+		order, err = s.orderRepo.Get(ctx, orderID)
+		if err != nil {
+			return nil, fmt.Errorf("重新获取订单失败: %v", err)
+		}
 	}
 
 	// 获取工作流实例

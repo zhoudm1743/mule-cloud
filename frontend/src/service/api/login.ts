@@ -7,7 +7,7 @@ interface Ilogin {
 }
 
 export function fetchLogin(data: Ilogin) {
-  const methodInstance = request.Post<Service.ResponseResult<Api.Login.Info>>('/auth/login', data)
+  const methodInstance = request.Post<Service.ResponseResult<Api.Login.Info>>('/admin/auth/login', data)
   methodInstance.meta = {
     authRole: null,
   }
@@ -15,7 +15,7 @@ export function fetchLogin(data: Ilogin) {
 }
 
 export function fetchRegister(data: Api.Login.RegisterRequest) {
-  const methodInstance = request.Post<Service.ResponseResult<Api.Login.RegisterResponse>>('/auth/register', data)
+  const methodInstance = request.Post<Service.ResponseResult<Api.Login.RegisterResponse>>('/admin/auth/register', data)
   methodInstance.meta = {
     authRole: null,
   }
@@ -23,7 +23,7 @@ export function fetchRegister(data: Api.Login.RegisterRequest) {
 }
 
 export function fetchUpdateToken(data: { token: string }) {
-  const method = request.Post<Service.ResponseResult<Api.Login.RefreshTokenResponse>>('/auth/refresh', data)
+  const method = request.Post<Service.ResponseResult<Api.Login.RefreshTokenResponse>>('/admin/auth/refresh', data)
   method.meta = {
     authRole: 'refreshToken',
   }
@@ -36,11 +36,11 @@ interface GetUserRoutesResponse {
 }
 
 export function fetchUserRoutes(params?: { id?: string }) {
-  return request.Get<Service.ResponseResult<GetUserRoutesResponse>>('/auth/getUserRoutes', { params })
+  return request.Get<Service.ResponseResult<GetUserRoutesResponse>>('/admin/auth/getUserRoutes', { params })
 }
 
 export function fetchUserProfile() {
-  return request.Get<Service.ResponseResult<Api.Login.Info>>('/auth/profile')
+  return request.Get<Service.ResponseResult<Api.Login.Info>>('/admin/auth/profile')
 }
 
 // 租户列表项
@@ -58,7 +58,7 @@ interface GetTenantListResponse {
 
 // 获取租户列表（用于登录页面选择）
 export function fetchLoginTenantList() {
-  const methodInstance = request.Get<Service.ResponseResult<GetTenantListResponse>>('/auth/tenants')
+  const methodInstance = request.Get<Service.ResponseResult<GetTenantListResponse>>('/admin/auth/tenants')
   methodInstance.meta = {
     authRole: null, // 无需认证
   }

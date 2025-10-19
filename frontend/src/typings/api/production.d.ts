@@ -53,12 +53,12 @@ namespace Api {
       id: string
       order_id: string
       contract_no: string
-      total_quantity: number
+      total_qty: number  // 修复：字段名应与后端一致
       procedure_seq: number
       procedure_name: string
       reported_qty: number
       progress: number
-      is_completed: boolean
+      is_completed?: boolean  // 可选，后端可能不返回
       created_at: number
       updated_at: number
     }

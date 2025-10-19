@@ -31,6 +31,7 @@ type CuttingBatchRepository interface {
 	UpdateByOrderID(ctx context.Context, orderID string, update bson.M) error
 	Delete(ctx context.Context, id string) error
 	DeleteByOrderID(ctx context.Context, orderID string) error
+	DeleteByTaskID(ctx context.Context, taskID string) error
 	GetByID(ctx context.Context, id string) (*models.CuttingBatch, error)
 	List(ctx context.Context, page, pageSize int, taskID, contractNo, bedNo, bundleNo string) ([]*models.CuttingBatch, int64, error)
 }
@@ -199,6 +200,12 @@ func (r *cuttingBatchRepository) UpdateByOrderID(ctx context.Context, orderID st
 func (r *cuttingBatchRepository) DeleteByOrderID(ctx context.Context, orderID string) error {
 	collection := r.GetCollectionWithContext(ctx)
 	_, err := collection.UpdateMany(ctx, bson.M{"order_id": orderID}, bson.M{"$set": bson.M{"is_deleted": 1}})
+	return err
+}
+
+func (r *cuttingBatchRepository) DeleteByTaskID(ctx context.Context, taskID string) error {
+	collection := r.GetCollectionWithContext(ctx)
+	_, err := collection.UpdateMany(ctx, bson.M{"task_id": taskID}, bson.M{"$set": bson.M{"is_deleted": 1}})
 	return err
 }
 

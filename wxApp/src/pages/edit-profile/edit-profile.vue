@@ -1,17 +1,19 @@
 <template>
 	<view class="edit-profile-container">
 		<!-- 头像 -->
-		<view class="avatar-section" @click="handleChooseAvatar">
-			<image :src="formData.avatar || '/static/logo.png'" mode="aspectFill"></image>
-			<view class="avatar-tip">
-				<u-icon v-if="!uploading" name="camera-fill" :size="32" color="#5EA3F2"></u-icon>
-				<text>{{ uploading ? '上传中...' : '更换头像' }}</text>
+		<view class="photos-section">
+			<view class="photo-item" @click="handleChooseAvatar">
+				<image :src="formData.avatar || '/static/logo.png'" mode="aspectFill" class="photo-img"></image>
+				<view class="photo-tip">
+					<u-icon v-if="!uploading.avatar" name="camera-fill" :size="28" color="#5EA3F2"></u-icon>
+					<text>{{ uploading.avatar ? '上传中...' : '头像' }}</text>
+				</view>
 			</view>
 		</view>
 
-		<!-- 个人信息 -->
+		<!-- 基本信息 -->
 		<view class="form-section">
-			<view class="section-title">个人信息</view>
+			<view class="section-title">基本信息</view>
 			<view class="form-group">
 				<view class="form-item">
 					<view class="item-label">姓名</view>
@@ -35,47 +37,79 @@
 				</view>
 
 				<view class="form-item">
-					<view class="item-label">联系电话</view>
+					<view class="item-label">身份证号</view>
+					<input 
+						class="item-input" 
+						type="idcard"
+						v-model="formData.id_card_no" 
+						placeholder="请输入身份证号"
+						:disabled="!!originalIdCardNo"
+						maxlength="18"
+					/>
+				</view>
+				<view v-if="originalIdCardNo" class="form-tip">
+					<text>身份证号首次填写后不可修改</text>
+				</view>
+
+				<view class="form-item" @click="showBirthdayPicker">
+					<view class="item-label">出生日期</view>
 					<view class="item-value">
-						<text class="phone-text">{{ formData.phone || '未绑定' }}</text>
-						<text class="bind-tip" @click="handleBindPhone" v-if="!formData.phone">去绑定</text>
+						<text :class="{'placeholder': !formData.birthday}">
+							{{ formData.birthday ? formatDate(formData.birthday) : '请选择出生日期' }}
+						</text>
+						<u-icon name="arrow-right" size="20" color="#999"></u-icon>
 					</view>
 				</view>
-			</view>
-		</view>
 
-		<!-- 企业信息 -->
-		<view class="form-section">
-			<view class="section-title">企业信息</view>
-			<view class="form-group">
-				<view class="form-item">
-					<view class="item-label">工号</view>
-					<input 
-						class="item-input" 
-						v-model="formData.jobNumber" 
-						placeholder="请输入工号"
-						maxlength="20"
-					/>
+				<view class="form-item" @click="showNationPicker">
+					<view class="item-label">民族</view>
+					<view class="item-value">
+						<text :class="{'placeholder': !formData.nation}">
+							{{ formData.nation || '请选择民族' }}
+						</text>
+						<u-icon name="arrow-right" size="20" color="#999"></u-icon>
+					</view>
 				</view>
-				
+
 				<view class="form-item">
-					<view class="item-label">部门</view>
+					<view class="item-label">籍贯</view>
 					<input 
 						class="item-input" 
-						v-model="formData.department" 
-						placeholder="请输入部门"
+						type="text"
+						v-model="formData.native_place" 
+						placeholder="如：广东深圳"
 						maxlength="50"
 					/>
 				</view>
 
-				<view class="form-item">
-					<view class="item-label">岗位</view>
-					<input 
-						class="item-input" 
-						v-model="formData.position" 
-						placeholder="请输入岗位"
-						maxlength="50"
-					/>
+				<view class="form-item" @click="showMaritalStatusPicker">
+					<view class="item-label">婚姻状况</view>
+					<view class="item-value">
+						<text :class="{'placeholder': !formData.marital_status}">
+							{{ getMaritalStatusText(formData.marital_status) }}
+						</text>
+						<u-icon name="arrow-right" size="20" color="#999"></u-icon>
+					</view>
+				</view>
+
+				<view class="form-item" @click="showPoliticalPicker">
+					<view class="item-label">政治面貌</view>
+					<view class="item-value">
+						<text :class="{'placeholder': !formData.political}">
+							{{ getPoliticalText(formData.political) }}
+						</text>
+						<u-icon name="arrow-right" size="20" color="#999"></u-icon>
+					</view>
+				</view>
+
+				<view class="form-item" @click="showEducationPicker">
+					<view class="item-label">学历</view>
+					<view class="item-value">
+						<text :class="{'placeholder': !formData.education}">
+							{{ getEducationText(formData.education) }}
+						</text>
+						<u-icon name="arrow-right" size="20" color="#999"></u-icon>
+					</view>
 				</view>
 			</view>
 		</view>
@@ -87,58 +121,100 @@
 				<text v-else>保存中...</text>
 			</view>
 		</view>
+
+		<!-- 日期选择器 -->
+		<u-datetime-picker
+			:show="showDatePicker"
+			v-model="selectedDate"
+			mode="date"
+			:max-date="maxDate"
+			:min-date="minDate"
+			@confirm="confirmBirthday"
+			@cancel="showDatePicker = false"
+		></u-datetime-picker>
+
+		<!-- 选择器 -->
+		<u-picker
+			:show="showPicker"
+			:columns="pickerColumns"
+			@confirm="confirmPicker"
+			@cancel="showPicker = false"
+		></u-picker>
 	</view>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue'
-import { useUserStore } from '@/store/modules/user'
-import { updateUserInfo, uploadFile } from '@/api/auth'
+import { getProfile, updateBasicInfo, uploadPhoto } from '@/api/member'
+import { uploadFile } from '@/api/auth'
 
-const userStore = useUserStore()
 const saving = ref(false)
-const uploading = ref(false)
+const uploading = ref({
+	avatar: false,
+	photo: false
+})
+
+const originalIdCardNo = ref('') // 保存原始身份证号（用于判断是否可编辑）
 
 const formData = ref({
 	name: '',
 	avatar: '',
+	photo: '',
 	gender: 0,
-	phone: '',
-	jobNumber: '',
-	department: '',
-	position: ''
+	id_card_no: '',
+	birthday: 0,
+	nation: '汉族',
+	native_place: '',
+	marital_status: 'single',
+	political: 'masses',
+	education: ''
 })
+
+// 日期选择器
+const showDatePicker = ref(false)
+const selectedDate = ref(new Date().getTime())
+const maxDate = ref(new Date().getTime()) // 今天
+const minDate = ref(new Date(1950, 0, 1).getTime()) // 1950年
+
+// 选择器
+const showPicker = ref(false)
+const pickerColumns = ref([])
+const pickerType = ref('') // nation / marital_status / political / education
 
 onMounted(async () => {
-	// 重新获取用户信息，确保拿到最新的成员详情
-	try {
-		await userStore.fetchUserInfo()
-	} catch (error) {
-		console.error('获取用户信息失败', error)
-	}
-	
-	// 获取用户信息和租户成员信息
-	const userInfo = userStore.userInfo || {}
-	const tenants = userStore.tenants || []
-	const currentTenant = userStore.currentTenant || {}
-	
-	// 从 tenants 数组中查找当前租户，获取完整的成员信息
-	const currentTenantDetail = tenants.find(t => t.tenant_id === currentTenant.tenant_id) || currentTenant
-	
-	formData.value = {
-		name: userInfo.nickname || '',
-		avatar: userInfo.avatar || '',
-		gender: userInfo.gender || 0,
-		phone: userInfo.phone || '',
-		jobNumber: currentTenantDetail.job_number || '',
-		department: currentTenantDetail.department || '',
-		position: currentTenantDetail.position || ''
-	}
+	await loadProfile()
 })
 
-// 选择头像 - 使用传统方式
+// 加载个人档案
+const loadProfile = async () => {
+	try {
+		const res = await getProfile()
+		if (res.code === 0) {
+			const profile = res.data || {}
+			formData.value = {
+				name: profile.name || '',
+				avatar: profile.avatar || '',
+				photo: profile.photo || '',
+				gender: profile.gender || 0,
+				id_card_no: profile.id_card_no || '',
+				birthday: profile.birthday || 0,
+				nation: profile.nation || '汉族',
+				native_place: profile.native_place || '',
+				marital_status: profile.marital_status || 'single',
+				political: profile.political || 'masses',
+				education: profile.education || ''
+			}
+			// 保存原始身份证号
+			originalIdCardNo.value = profile.id_card_no || ''
+		}
+	} catch (error) {
+		console.error('加载个人档案失败', error)
+	}
+}
+
+// 选择头像（同时赋值给avatar和photo）
 const handleChooseAvatar = () => {
-	if (uploading.value) return
+	if (uploading.value.avatar) return
 	
 	uni.chooseImage({
 		count: 1,
@@ -147,12 +223,25 @@ const handleChooseAvatar = () => {
 		success: async (res) => {
 			const tempFilePath = res.tempFilePaths[0]
 			
-			// 上传到服务器
 			try {
-				uploading.value = true
+				uploading.value.avatar = true
+				
+				// 先本地预览
+				formData.value.avatar = tempFilePath
+				formData.value.photo = tempFilePath
+				
+				// 上传到服务器（使用 auth.js 的 uploadFile）
 				const uploadResult = await uploadFile(tempFilePath, 'avatar')
-				formData.value.avatar = uploadResult.url
-				console.log('头像上传成功', uploadResult)
+				const photoUrl = uploadResult.url || uploadResult.file_url
+				
+				// 同时更新avatar和photo两个字段
+				await uploadPhoto({ type: 'avatar', url: photoUrl })
+				await uploadPhoto({ type: 'photo', url: photoUrl })
+				
+				// 更新为服务器URL
+				formData.value.avatar = photoUrl
+				formData.value.photo = photoUrl
+				
 				uni.showToast({
 					title: '头像已更换',
 					icon: 'success'
@@ -164,28 +253,75 @@ const handleChooseAvatar = () => {
 					icon: 'none'
 				})
 			} finally {
-				uploading.value = false
+				uploading.value.avatar = false
 			}
-		},
-		fail: (err) => {
-			console.error('选择图片失败', err)
 		}
 	})
 }
 
-// 绑定手机号
-const handleBindPhone = () => {
-	uni.showModal({
-		title: '绑定手机号',
-		content: '此功能需要在"我的"页面进行操作',
-		showCancel: true,
-		confirmText: '去绑定',
-		success: (res) => {
-			if (res.confirm) {
-				uni.navigateBack()
-			}
-		}
-	})
+// 显示出生日期选择器
+const showBirthdayPicker = () => {
+	if (formData.value.birthday) {
+		selectedDate.value = formData.value.birthday * 1000
+	}
+	showDatePicker.value = true
+}
+
+// 确认出生日期
+const confirmBirthday = (e) => {
+	formData.value.birthday = Math.floor(e.value / 1000)
+	showDatePicker.value = false
+}
+
+// 显示民族选择器
+const showNationPicker = () => {
+	pickerType.value = 'nation'
+	pickerColumns.value = [['汉族', '回族', '维吾尔族', '壮族', '满族', '苗族', '彝族', '土家族', '藏族', '蒙古族', '其他']]
+	showPicker.value = true
+}
+
+// 显示婚姻状况选择器
+const showMaritalStatusPicker = () => {
+	pickerType.value = 'marital_status'
+	pickerColumns.value = [[{text: '未婚', value: 'single'}, {text: '已婚', value: 'married'}, {text: '离异', value: 'divorced'}]]
+	showPicker.value = true
+}
+
+// 显示政治面貌选择器
+const showPoliticalPicker = () => {
+	pickerType.value = 'political'
+	pickerColumns.value = [[{text: '群众', value: 'masses'}, {text: '团员', value: 'league'}, {text: '党员', value: 'party'}]]
+	showPicker.value = true
+}
+
+// 显示学历选择器
+const showEducationPicker = () => {
+	pickerType.value = 'education'
+	pickerColumns.value = [[
+		{text: '小学', value: 'primary'},
+		{text: '初中', value: 'middle'},
+		{text: '高中', value: 'high'},
+		{text: '大专', value: 'college'},
+		{text: '本科', value: 'bachelor'},
+		{text: '硕士', value: 'master'},
+		{text: '博士', value: 'doctor'}
+	]]
+	showPicker.value = true
+}
+
+// 确认选择器
+const confirmPicker = (e) => {
+	const value = e.value[0]
+	if (pickerType.value === 'nation') {
+		formData.value.nation = value
+	} else if (pickerType.value === 'marital_status') {
+		formData.value.marital_status = value.value || value
+	} else if (pickerType.value === 'political') {
+		formData.value.political = value.value || value
+	} else if (pickerType.value === 'education') {
+		formData.value.education = value.value || value
+	}
+	showPicker.value = false
 }
 
 // 保存
@@ -200,24 +336,17 @@ const handleSave = async () => {
 
 	saving.value = true
 	try {
-		await updateUserInfo({
-			nickname: formData.value.name,
-			avatar: formData.value.avatar,
+		await updateBasicInfo({
+			name: formData.value.name,
 			gender: formData.value.gender,
-			job_number: formData.value.jobNumber,
-			department: formData.value.department,
-			position: formData.value.position
+			id_card_no: formData.value.id_card_no,
+			birthday: formData.value.birthday,
+			nation: formData.value.nation,
+			native_place: formData.value.native_place,
+			marital_status: formData.value.marital_status,
+			political: formData.value.political,
+			education: formData.value.education
 		})
-
-		// 更新本地状态（全局用户信息）
-		userStore.updateUserInfo({
-			nickname: formData.value.name,
-			avatar: formData.value.avatar,
-			gender: formData.value.gender
-		})
-
-		// 重新获取用户完整信息（包括更新后的租户成员信息）
-		await userStore.fetchUserInfo()
 
 		uni.showToast({
 			title: '保存成功',
@@ -237,6 +366,32 @@ const handleSave = async () => {
 		saving.value = false
 	}
 }
+
+// 格式化日期
+const formatDate = (timestamp) => {
+	if (!timestamp || timestamp === 0) return ''
+	const date = new Date(timestamp * 1000)
+	return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+// 文本转换函数
+const getMaritalStatusText = (status) => {
+	const map = {single: '未婚', married: '已婚', divorced: '离异'}
+	return map[status] || '请选择'
+}
+
+const getPoliticalText = (political) => {
+	const map = {party: '党员', league: '团员', masses: '群众'}
+	return map[political] || '请选择'
+}
+
+const getEducationText = (education) => {
+	const map = {
+		primary: '小学', middle: '初中', high: '高中',
+		college: '大专', bachelor: '本科', master: '硕士', doctor: '博士'
+	}
+	return map[education] || '请选择'
+}
 </script>
 
 <style scoped lang="scss">
@@ -246,28 +401,33 @@ const handleSave = async () => {
 	padding-bottom: 120rpx;
 }
 
-// 头像区域
-.avatar-section {
+// 头像和证件照区域
+.photos-section {
+	display: flex;
+	justify-content: center;
+	padding: 60rpx 0 40rpx;
+}
+
+.photo-item {
 	position: relative;
-	width: 200rpx;
-	height: 200rpx;
-	margin: 60rpx auto 40rpx;
-	border-radius: 50%;
+	width: 160rpx;
+	height: 160rpx;
+	border-radius: 16rpx;
 	overflow: hidden;
 	box-shadow: 0 8rpx 24rpx rgba(94, 163, 242, 0.2);
 	cursor: pointer;
 	
-	image {
+	.photo-img {
 		width: 100%;
 		height: 100%;
 	}
 	
-	.avatar-tip {
+	.photo-tip {
 		position: absolute;
 		bottom: 0;
 		left: 0;
 		right: 0;
-		height: 80rpx;
+		height: 60rpx;
 		background: rgba(0, 0, 0, 0.6);
 		display: flex;
 		flex-direction: column;
@@ -331,20 +491,25 @@ const handleSave = async () => {
 	display: flex;
 	align-items: center;
 	justify-content: flex-end;
+	gap: 8rpx;
+
+	text {
+		font-size: 30rpx;
+		color: #333;
+
+		&.placeholder {
+			color: #ccc;
+		}
+	}
 }
 
-.phone-text {
-	font-size: 30rpx;
-	color: #666;
-}
-
-.bind-tip {
-	margin-left: 16rpx;
-	padding: 8rpx 24rpx;
-	background: #e8f4ff;
-	color: #5EA3F2;
-	font-size: 24rpx;
-	border-radius: 32rpx;
+.form-tip {
+	padding: 16rpx 32rpx 0;
+	
+	text {
+		font-size: 24rpx;
+		color: #ff9800;
+	}
 }
 
 // 保存按钮

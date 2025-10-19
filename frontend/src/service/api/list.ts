@@ -1,5 +1,5 @@
 import { request } from '../http'
 
 export function fetchUserList() {
-  return request.Get('/userList')
+  return request.Get('/admin/userList')
 }

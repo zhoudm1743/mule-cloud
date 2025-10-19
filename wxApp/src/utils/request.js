@@ -49,6 +49,13 @@ function request(options) {
 		const token = uni.getStorageSync('token');
 		const currentTenant = uni.getStorageSync('currentTenant');
 		
+		// 调试：打印token和租户信息
+		console.log('===== Request Debug =====')
+		console.log('URL:', options.url)
+		console.log('Token:', token ? `${token.substring(0, 20)}...` : 'null')
+		console.log('CurrentTenant:', currentTenant)
+		console.log('=========================')
+		
 		// 完整URL
 		const url = BASE_URL + options.url;
 		
@@ -61,11 +68,15 @@ function request(options) {
 		// 添加token
 		if (token) {
 			header['Authorization'] = `Bearer ${token}`;
+			console.log('设置 Authorization header')
+		} else {
+			console.log('警告：没有token！')
 		}
 		
 		// 添加租户代码
 		if (currentTenant && currentTenant.tenant_code) {
 			header['X-Tenant-Code'] = currentTenant.tenant_code;
+			console.log('设置 X-Tenant-Code:', currentTenant.tenant_code)
 		}
 		
 		// 显示加载提示
@@ -101,19 +112,11 @@ function request(options) {
 						});
 						reject(new Error(errMsg));
 					}
-				} else if (res.statusCode === 401) {
-					// 未认证，跳转到登录页
-					uni.showToast({
-						title: '请先登录',
-						icon: 'none'
-					});
-					uni.removeStorageSync('token');
-					uni.removeStorageSync('userInfo');
-					uni.reLaunch({
-						url: '/pages/login/login'
-					});
-					reject(new Error('未认证'));
-				} else {
+		} else if (res.statusCode === 401) {
+			// 未认证 - 不自动跳转，只抛出错误让调用方处理
+			// 避免在刚登录后因为异步请求问题导致错误跳转
+			reject(new Error('未认证'));
+		} else {
 					// HTTP错误
 					uni.showToast({
 						title: `请求失败(${res.statusCode})`,

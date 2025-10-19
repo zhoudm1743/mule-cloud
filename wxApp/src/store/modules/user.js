@@ -48,14 +48,30 @@ export const useUserStore = defineStore('user', {
 					loginParams.city = userProfile.city
 				}
 
-				// 调用后端登录接口
-				const res = await wechatLogin(loginParams)
+			// 调用后端登录接口
+			const res = await wechatLogin(loginParams)
+			
 
-				// 保存用户信息
-				this.userInfo = res.user_info
-				uni.setStorageSync('userInfo', res.user_info)
+			// 提取 data（后端使用 response.Success 包装，数据在 data 字段）
+			const data = res.data || res
+			
+			// 如果返回了token，立即保存（无论是否需要绑定/选择租户）
+			if (data.token) {
+				console.log('登录返回了token，保存登录信息')
+				this.setLoginInfo({
+					token: data.token,
+					user_info: data.user_info || {},
+					current_tenant: data.current_tenant,
+					tenants: data.tenants || (data.current_tenant ? [data.current_tenant] : [])
+				})
+			} else {
+				console.log('登录没有返回token（需要绑定/选择租户）')
+				// 没有token的情况（需要绑定租户），只保存用户信息
+				this.userInfo = data.user_info
+				uni.setStorageSync('userInfo', data.user_info)
+			}
 
-				return res
+			return data
 			} catch (error) {
 				console.error('登录失败', error)
 				throw error
@@ -66,6 +82,7 @@ export const useUserStore = defineStore('user', {
 		 * 设置Token和租户信息
 		 */
 		setLoginInfo({ token, user_info, current_tenant, tenants }) {
+			
 			this.token = token
 			this.userInfo = user_info
 			this.currentTenant = current_tenant
@@ -76,6 +93,10 @@ export const useUserStore = defineStore('user', {
 			uni.setStorageSync('userInfo', user_info)
 			uni.setStorageSync('currentTenant', current_tenant)
 			uni.setStorageSync('tenants', tenants || [])
+			
+			// 验证保存
+			const savedToken = uni.getStorageSync('token')
+			console.log('验证：Token已保存到storage:', savedToken ? `${savedToken.substring(0, 30)}...` : 'null')
 		},
 
 		/**
@@ -148,4 +169,3 @@ export const useUserStore = defineStore('user', {
 	// 持久化
 	persist: true
 })
-

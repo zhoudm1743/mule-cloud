@@ -75,6 +75,9 @@ func main() {
 		cfg.Wechat.AppSecret,
 	)
 
+	// 初始化员工服务
+	memberSvc := services.NewMemberService()
+
 	// 初始化路由
 	gin.SetMode(cfg.Server.Mode)
 	r := gin.New()
@@ -97,11 +100,26 @@ func main() {
 	protected := r.Group("/miniapp")
 	middleware.Apply(protected, jwtManager) // 应用JWT认证中间件
 	{
+		// 微信用户相关
 		protected.POST("/wechat/switch-tenant", transport.SwitchTenantHandler(wechatSvc)) // 切换租户
 		protected.GET("/user/info", transport.GetUserInfoHandler(wechatSvc))              // 获取用户信息
 		protected.PUT("/user/info", transport.UpdateUserInfoHandler(wechatSvc))           // 更新用户信息
 		protected.POST("/wechat/phone", transport.GetPhoneNumberHandler(wechatSvc))       // 绑定手机号
 		protected.DELETE("/wechat/phone", transport.UnbindPhoneHandler(wechatSvc))        // 解绑手机号
+
+		// 员工档案相关（员工自助）
+		protected.GET("/member/profile", transport.GetProfileHandler(memberSvc))                // 获取个人档案
+		protected.PUT("/member/profile/basic", transport.UpdateBasicInfoHandler(memberSvc))     // 更新基本信息
+		protected.PUT("/member/profile/contact", transport.UpdateContactInfoHandler(memberSvc)) // 更新联系信息
+		protected.POST("/member/profile/photo", transport.UploadPhotoHandler(memberSvc))        // 上传照片
+
+		// 员工管理（管理后台）
+		protected.GET("/member/list", transport.GetMemberListHandler(memberSvc))    // 获取员工列表
+		protected.GET("/member/:id", transport.GetMemberDetailHandler(memberSvc))   // 获取员工详情
+		protected.PUT("/member/:id", transport.UpdateMemberHandler(memberSvc))      // 更新员工信息
+		protected.DELETE("/member/:id", transport.DeleteMemberHandler(memberSvc))   // 删除员工
+		protected.GET("/member/export", transport.ExportMembersHandler(memberSvc))  // 导出员工数据
+		protected.POST("/member/import", transport.ImportMembersHandler(memberSvc)) // 导入员工数据
 	}
 
 	// 健康检查（不需要认证）

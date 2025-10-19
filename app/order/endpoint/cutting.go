@@ -112,6 +112,17 @@ func DeleteCuttingBatchEndpoint(s services.ICuttingService) endpoint.Endpoint {
 	}
 }
 
+func ClearTaskBatchesEndpoint(s services.ICuttingService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (interface{}, error) {
+		taskID := request.(string)
+		err := s.ClearTaskBatches(ctx, taskID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{"message": "清空成功，可以重新创建批次了"}, nil
+	}
+}
+
 func PrintCuttingBatchEndpoint(s services.ICuttingService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (interface{}, error) {
 		id := request.(string)

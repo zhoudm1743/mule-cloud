@@ -1,7 +1,7 @@
 <script setup lang="tsx">
 import { computed, h, onMounted, reactive, ref } from 'vue'
-import { NButton, NCard, NDataTable, NInput, NInputNumber, NModal, NForm, NFormItem, NSpace, NTabs, NTabPane, NTag, NText, NProgress } from 'naive-ui'
-import { fetchCuttingTaskList, fetchCuttingPieceList, updateCuttingPieceProgress } from '@/service/api/order'
+import { NButton, NCard, NDataTable, NInput, NModal, NForm, NFormItem, NSpace, NTabs, NTabPane, NTag, NText, NProgress } from 'naive-ui'
+import { fetchCuttingTaskList, fetchCuttingPieceList, clearTaskBatches } from '@/service/api/order'
 import { useBoolean } from '@/hooks'
 import BatchModal from './components/BatchModal.vue'
 import BatchDrawer from './components/BatchDrawer.vue'
@@ -47,13 +47,6 @@ const initialPieceSearchParams = {
   bundle_no: '',
 }
 const pieceSearchParams = reactive({ ...initialPieceSearchParams })
-
-// 进度更新模态框
-const showProgressModal = ref(false)
-const currentPiece = ref<Api.Order.CuttingPieceInfo | null>(null)
-const progressForm = ref({
-  progress: 0,
-})
 
 // 当前任务ID
 const currentTaskId = ref('')
@@ -110,6 +103,54 @@ function handleAddBatch(task: Api.Order.CuttingTaskInfo) {
   ;(batchModalRef.value as any)?.openModal('add', task)
 }
 
+// 清空批次确认对话框
+const showClearConfirmModal = ref(false)
+const clearConfirmInput = ref('')
+const taskToClear = ref<Api.Order.CuttingTaskInfo | null>(null)
+
+// 清空批次
+async function handleClearBatches(task: Api.Order.CuttingTaskInfo) {
+  // 如果没有批次，不需要清空
+  if (task.cut_pieces === 0) {
+    window.$message.warning('该任务还没有批次')
+    return
+  }
+
+  // 打开确认对话框
+  taskToClear.value = task
+  clearConfirmInput.value = ''
+  showClearConfirmModal.value = true
+}
+
+// 执行清空
+async function handleConfirmClear() {
+  if (clearConfirmInput.value !== '确认清空') {
+    window.$message.error('请输入"确认清空"以继续')
+    return
+  }
+
+  if (!taskToClear.value) return
+
+  try {
+    await clearTaskBatches(taskToClear.value.id)
+    window.$message.success('清空成功，现在可以重新创建批次了')
+    showClearConfirmModal.value = false
+    taskToClear.value = null
+    clearConfirmInput.value = ''
+    fetchTaskData()
+  }
+  catch (error: any) {
+    window.$message.error(error.message || '清空失败')
+  }
+}
+
+// 取消清空
+function handleCancelClear() {
+  showClearConfirmModal.value = false
+  taskToClear.value = null
+  clearConfirmInput.value = ''
+}
+
 // 任务表格列
 const taskColumns = computed(() => [
   { title: '合同号', key: 'contract_no', width: 150 },
@@ -148,12 +189,18 @@ const taskColumns = computed(() => [
   {
     title: '操作',
     key: 'actions',
-    width: 250,
+    width: 350,
     render: (row: Api.Order.CuttingTaskInfo) => {
       return h(NSpace, {}, {
         default: () => [
           h(NButton, { size: 'small', onClick: () => handleViewBatches(row) }, { default: () => '查看批次' }),
           h(NButton, { size: 'small', type: 'primary', onClick: () => handleAddBatch(row) }, { default: () => '制菲' }),
+          h(NButton, { 
+            size: 'small', 
+            type: 'warning',
+            disabled: row.cut_pieces === 0,
+            onClick: () => handleClearBatches(row) 
+          }, { default: () => '清空批次' }),
         ],
       })
     },
@@ -286,30 +333,6 @@ function handlePiecePageChange(p: number, ps: number) {
   pieceSearchParams.page = p
   pieceSearchParams.page_size = ps
   fetchPieceData()
-}
-
-// 打开进度更新模态框
-function openProgressModal(piece: Api.Order.CuttingPieceInfo) {
-  currentPiece.value = piece
-  progressForm.value.progress = piece.progress
-  showProgressModal.value = true
-}
-
-// 更新进度
-async function handleUpdateProgress() {
-  if (!currentPiece.value) return
-  
-  try {
-    await updateCuttingPieceProgress(currentPiece.value.id, {
-      progress: progressForm.value.progress,
-    })
-    window.$message.success('更新成功')
-    showProgressModal.value = false
-    fetchPieceData()
-  }
-  catch (error: any) {
-    window.$message.error(error.message || '更新失败')
-  }
 }
 
 // Tab 切换时加载数据
@@ -459,44 +482,49 @@ onMounted(() => {
     <!-- 批次抽屉 -->
     <BatchDrawer ref="batchDrawerRef" @refresh="handleRefreshBatches" />
 
-    <!-- 进度更新模态框 -->
+    <!-- 清空批次确认模态框 -->
     <NModal
-      v-model:show="showProgressModal"
+      v-model:show="showClearConfirmModal"
       preset="dialog"
-      title="更新裁片进度"
-      positive-text="确定"
+      title="⚠️ 危险操作：清空批次"
+      type="error"
+      positive-text="确认清空"
       negative-text="取消"
-      @positive-click="handleUpdateProgress"
+      :positive-button-props="{ type: 'error', disabled: clearConfirmInput !== '确认清空' }"
+      @positive-click="handleConfirmClear"
+      @negative-click="handleCancelClear"
     >
-      <NForm v-if="currentPiece" label-placement="left" label-width="100px" class="mt-4">
-        <NFormItem label="合同号">
-          <NText>{{ currentPiece.contract_no }}</NText>
-        </NFormItem>
-        <NFormItem label="扎号">
-          <NText>{{ currentPiece.bundle_no }}</NText>
-        </NFormItem>
-        <NFormItem label="颜色/尺码">
-          <NText>{{ currentPiece.color }} / {{ currentPiece.size }}</NText>
-        </NFormItem>
-        <NFormItem label="总工序数">
-          <NText>{{ currentPiece.total_process }} 道</NText>
-        </NFormItem>
-        <NFormItem label="当前进度" required>
-          <NInputNumber
-            v-model:value="progressForm.progress"
-            :min="0"
-            :max="currentPiece.total_process"
-            :step="1"
-            placeholder="请输入完成的工序数"
-            style="width: 100%"
+      <NSpace vertical v-if="taskToClear" class="mt-4">
+        <NText type="error" strong>
+          ⚠️ 此操作将删除以下任务的所有批次和菲码，且无法恢复！
+        </NText>
+        
+        <NCard size="small" :bordered="true">
+          <NSpace vertical size="small">
+            <NText>合同号：<NText strong>{{ taskToClear.contract_no }}</NText></NText>
+            <NText>款号：<NText strong>{{ taskToClear.style_no }}</NText></NText>
+            <NText>已裁件数：<NText type="warning" strong>{{ taskToClear.cut_pieces }} 件</NText></NText>
+          </NSpace>
+        </NCard>
+
+        <NText depth="3">
+          清空后，所有批次和菲码都将被删除，需要重新创建。请确认您了解此操作的后果。
+        </NText>
+
+        <NFormItem label="请输入 确认清空 以继续：" required>
+          <NInput
+            v-model:value="clearConfirmInput"
+            placeholder="请输入：确认清空"
+            @keyup.enter="handleConfirmClear"
+            @paste.prevent
+            @contextmenu.prevent
           />
         </NFormItem>
-        <NFormItem>
-          <NText depth="3" style="font-size: 12px">
-            提示：输入已完成的工序数量（0 ~ {{ currentPiece.total_process }}）
-          </NText>
-        </NFormItem>
-      </NForm>
+
+        <NText v-if="clearConfirmInput && clearConfirmInput !== '确认清空'" type="error" depth="3">
+          输入不正确，请输入"确认清空"
+        </NText>
+      </NSpace>
     </NModal>
   </NSpace>
 </template>

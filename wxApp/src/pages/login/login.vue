@@ -85,60 +85,60 @@ const handleWechatLogin = async () => {
 		// 调用登录（不传用户信息）
 		const res = await userStore.login()
 
-		// 根据响应处理不同情况
-		if (res.need_bind_tenant) {
-			// 需要绑定租户
-			uni.navigateTo({
-				url: '/pages/bind-tenant/bind-tenant?userId=' + res.user_info.id
-			})
-		} else if (res.need_select_tenant) {
-			// 需要选择租户
-			uni.navigateTo({
-				url: '/pages/select-tenant/select-tenant?userId=' + res.user_info.id + '&tenants=' + JSON.stringify(res.tenants)
-			})
-		} else {
-			// 直接登录成功 - 保存token和用户信息
-			userStore.setLoginInfo({
-				token: res.token,
-				user_info: res.user_info,
-				current_tenant: res.current_tenant,
-				tenants: res.tenants || [res.current_tenant]
-			})
+	// 根据响应处理不同情况
+	if (res.need_bind_tenant) {
+		// 需要绑定租户
+		uni.navigateTo({
+			url: '/pages/bind-tenant/bind-tenant?userId=' + (res.user_info?.id || '')
+		})
+	} else if (res.need_select_tenant) {
+		// 需要选择租户
+		uni.navigateTo({
+			url: '/pages/select-tenant/select-tenant?userId=' + (res.user_info?.id || '') + '&tenants=' + JSON.stringify(res.tenants)
+		})
+	} else {
+		// 直接登录成功 - 保存token和用户信息
+		userStore.setLoginInfo({
+			token: res.token,
+			user_info: res.user_info || {},
+			current_tenant: res.current_tenant,
+			tenants: res.tenants || [res.current_tenant]
+		})
 
-			uni.showToast({
-				title: '登录成功',
-				icon: 'success'
-			})
+		uni.showToast({
+			title: '登录成功',
+			icon: 'success'
+		})
 
-			// 检查是否需要完善资料
-			const needCompleteProfile = !res.user_info.nickname || res.user_info.nickname === '微信用户'
-			
-			setTimeout(() => {
-				if (needCompleteProfile) {
-					// 首次登录或未完善资料，引导用户完善资料
-					uni.showModal({
-						title: '完善资料',
-						content: '为了更好地为您服务，请完善您的个人资料',
-						confirmText: '去完善',
-						cancelText: '稍后',
-						success: (modalRes) => {
-							if (modalRes.confirm) {
-								uni.reLaunch({
-									url: '/pages/edit-profile/edit-profile'
-								})
-							} else {
-								uni.reLaunch({
-									url: '/pages/index/index'
-								})
-							}
+		// 检查是否需要完善资料
+		const needCompleteProfile = !res.user_info?.nickname || res.user_info?.nickname === '微信用户'
+		
+		setTimeout(() => {
+			if (needCompleteProfile) {
+				// 首次登录或未完善资料，引导用户完善资料
+				uni.showModal({
+					title: '完善资料',
+					content: '为了更好地为您服务，请完善您的个人资料',
+					confirmText: '去完善',
+					cancelText: '稍后',
+					success: (modalRes) => {
+						if (modalRes.confirm) {
+							uni.reLaunch({
+								url: '/pages/edit-profile/edit-profile'
+							})
+						} else {
+							uni.reLaunch({
+								url: '/pages/index/index'
+							})
 						}
-					})
-				} else {
-					uni.reLaunch({
-						url: '/pages/index/index'
-					})
-				}
-			}, 1000)
+					}
+				})
+			} else {
+				uni.reLaunch({
+					url: '/pages/index/index'
+				})
+			}
+		}, 1000)
 		}
 	} catch (error) {
 		console.error('登录失败', error)

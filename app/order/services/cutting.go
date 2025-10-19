@@ -29,6 +29,7 @@ type ICuttingService interface {
 	GetCuttingBatchList(ctx context.Context, req *dto.CuttingBatchListRequest) ([]*models.CuttingBatch, int64, error)
 	GetCuttingBatchByID(ctx context.Context, id string) (*models.CuttingBatch, error)
 	DeleteCuttingBatch(ctx context.Context, id string) error
+	ClearTaskBatches(ctx context.Context, taskID string) error
 	PrintCuttingBatch(ctx context.Context, id string) (*models.CuttingBatch, error)
 	BatchPrintCuttingBatches(ctx context.Context, ids []string) ([]*models.CuttingBatch, error)
 
@@ -146,6 +147,7 @@ func (s *cuttingService) GetCuttingTaskByOrderID(ctx context.Context, orderID st
 }
 
 // CreateCuttingBatch 创建裁剪批次（制菲）
+// 注意：如果包含多个尺码，会为每个尺码创建独立的批次和菲码
 func (s *cuttingService) CreateCuttingBatch(ctx context.Context, req *dto.CuttingBatchCreateRequest) (*models.CuttingBatch, error) {
 	// 获取裁剪任务
 	task, err := s.taskRepo.GetByID(ctx, req.TaskID)
@@ -163,36 +165,43 @@ func (s *cuttingService) CreateCuttingBatch(ctx context.Context, req *dto.Cuttin
 	}
 	totalProcess := len(order.Procedures) // 从订单获取工序数量
 
-	// 计算总件数
-	totalPieces := 0
-	for _, size := range req.SizeDetails {
-		totalPieces += size.Quantity * req.LayerCount
-	}
-
 	// 对扎号补0，个位数前面补0（如：1 -> 01）
 	formattedBundleNo := req.BundleNo
 	if bundleInt, err := strconv.Atoi(req.BundleNo); err == nil && bundleInt < 100 {
 		formattedBundleNo = fmt.Sprintf("%02d", bundleInt)
 	}
 
-	// 生成二维码内容（JSON格式）
+	// ⚠️ 重要：一个菲码只能代表一个尺码
+	// 如果传入多个尺码，只创建第一个尺码的批次
+	if len(req.SizeDetails) == 0 {
+		return nil, fmt.Errorf("尺码明细不能为空")
+	}
+
+	if len(req.SizeDetails) > 1 {
+		return nil, fmt.Errorf("单个批次创建只支持一个尺码，如需创建多个尺码请使用批量创建接口")
+	}
+
+	// 只处理第一个尺码
+	sizeDetail := req.SizeDetails[0]
+	totalPieces := sizeDetail.Quantity * req.LayerCount
+
+	// 先生成批次ID
+	batchID := primitive.NewObjectID().Hex()
+
+	// 生成二维码内容（简化版JSON格式，只包含核心字段）
 	qrCodeData := map[string]interface{}{
-		"task_id":      task.ID,
-		"order_id":     task.OrderID,
-		"contract_no":  task.ContractNo,
-		"style_no":     task.StyleNo,
-		"bed_no":       req.BedNo,
-		"bundle_no":    formattedBundleNo,
-		"color":        req.Color,
-		"layer_count":  req.LayerCount,
-		"size_details": req.SizeDetails,
-		"total_pieces": totalPieces,
+		"batch_id":  batchID,
+		"bed_no":    req.BedNo,
+		"bundle_no": formattedBundleNo,
+		"color":     req.Color,
+		"size":      sizeDetail.Size,
+		"quantity":  totalPieces,
 	}
 	qrCodeJSON, _ := json.Marshal(qrCodeData)
 
-	// 创建裁剪批次
+	// 创建裁剪批次（只包含一个尺码）
 	batch := &models.CuttingBatch{
-		ID:          primitive.NewObjectID().Hex(),
+		ID:          batchID,
 		TaskID:      req.TaskID,
 		OrderID:     task.OrderID,
 		ContractNo:  task.ContractNo,
@@ -201,7 +210,7 @@ func (s *cuttingService) CreateCuttingBatch(ctx context.Context, req *dto.Cuttin
 		BundleNo:    formattedBundleNo,
 		Color:       req.Color,
 		LayerCount:  req.LayerCount,
-		SizeDetails: req.SizeDetails,
+		SizeDetails: []models.SizeDetail{sizeDetail}, // 只包含一个尺码
 		TotalPieces: totalPieces,
 		QRCode:      string(qrCodeJSON),
 		PrintCount:  0,
@@ -228,24 +237,22 @@ func (s *cuttingService) CreateCuttingBatch(ctx context.Context, req *dto.Cuttin
 	// 使用工作流更新订单状态
 	_ = s.workflow.StartProduction(ctx, task.OrderID, req.CreatedBy, "制菲开始生产")
 
-	// 创建裁片监控记录（使用上面已经格式化好的 formattedBundleNo）
-	for _, size := range req.SizeDetails {
-		piece := &models.CuttingPiece{
-			ID:           primitive.NewObjectID().Hex(),
-			OrderID:      task.OrderID,
-			ContractNo:   task.ContractNo,
-			StyleNo:      task.StyleNo,
-			BedNo:        req.BedNo,
-			BundleNo:     formattedBundleNo,
-			Color:        req.Color,
-			Size:         size.Size,
-			Quantity:     size.Quantity * req.LayerCount,
-			Progress:     0,
-			TotalProcess: totalProcess, // 使用订单的工序数量
-			CreatedAt:    time.Now().Unix(),
-		}
-		_ = s.pieceRepo.Create(ctx, piece)
+	// 创建裁片监控记录
+	piece := &models.CuttingPiece{
+		ID:           primitive.NewObjectID().Hex(),
+		OrderID:      task.OrderID,
+		ContractNo:   task.ContractNo,
+		StyleNo:      task.StyleNo,
+		BedNo:        req.BedNo,
+		BundleNo:     formattedBundleNo,
+		Color:        req.Color,
+		Size:         sizeDetail.Size,
+		Quantity:     totalPieces,
+		Progress:     0,
+		TotalProcess: totalProcess,
+		CreatedAt:    time.Now().Unix(),
 	}
+	_ = s.pieceRepo.Create(ctx, piece)
 
 	return batch, nil
 }
@@ -314,24 +321,23 @@ func (s *cuttingService) BulkCreateCuttingBatch(ctx context.Context, req *dto.Cu
 				// 当前扎号（补0，个位数前面补0）
 				currentBundleNo := fmt.Sprintf("%02d", bundleNo)
 
-				// 生成二维码内容（JSON格式）- 每层每个尺码一个批次
+				// 先生成批次ID
+				batchID := primitive.NewObjectID().Hex()
+
+				// 生成二维码内容（简化版JSON格式，只包含核心字段）
 				qrCodeData := map[string]interface{}{
-					"task_id":     task.ID,
-					"order_id":    task.OrderID,
-					"contract_no": task.ContractNo,
-					"style_no":    task.StyleNo,
-					"bed_no":      req.BedNo,
-					"bundle_no":   currentBundleNo,
-					"color":       batchItem.Color,
-					"size":        sizeDetail.Size,
-					"quantity":    piecesPerBundle,
-					"layer":       layer + 1, // 层号（从1开始）
+					"batch_id":  batchID,
+					"bed_no":    req.BedNo,
+					"bundle_no": currentBundleNo,
+					"color":     batchItem.Color,
+					"size":      sizeDetail.Size,
+					"quantity":  piecesPerBundle,
 				}
 				qrCodeJSON, _ := json.Marshal(qrCodeData)
 
 				// 创建裁剪批次（每层每个尺码一个批次，currentBundleNo已经在上面格式化为补0格式）
 				batch := &models.CuttingBatch{
-					ID:         primitive.NewObjectID().Hex(),
+					ID:         batchID,
 					TaskID:     req.TaskID,
 					OrderID:    task.OrderID,
 					ContractNo: task.ContractNo,
@@ -467,6 +473,30 @@ func (s *cuttingService) DeleteCuttingBatch(ctx context.Context, id string) erro
 	return s.taskRepo.Update(ctx, task.ID, task)
 }
 
+// ClearTaskBatches 清空任务的所有批次（用于重新生成菲码）
+func (s *cuttingService) ClearTaskBatches(ctx context.Context, taskID string) error {
+	// 获取裁剪任务
+	task, err := s.taskRepo.GetByID(ctx, taskID)
+	if err != nil {
+		return err
+	}
+
+	// 删除该任务的所有批次
+	err = s.batchRepo.DeleteByTaskID(ctx, taskID)
+	if err != nil {
+		return fmt.Errorf("删除批次失败: %v", err)
+	}
+
+	// 删除对应的裁片监控记录
+	_ = s.pieceRepo.DeleteByOrderID(ctx, task.OrderID)
+
+	// 重置任务统计
+	task.CutPieces = 0
+	task.Status = 0 // 待裁剪
+	task.UpdatedAt = time.Now().Unix()
+	return s.taskRepo.Update(ctx, task.ID, task)
+}
+
 // PrintCuttingBatch 打印裁剪批次
 func (s *cuttingService) PrintCuttingBatch(ctx context.Context, id string) (*models.CuttingBatch, error) {
 	batch, err := s.batchRepo.GetByID(ctx, id)
@@ -525,6 +555,97 @@ func (s *cuttingService) UpdateCuttingPieceProgress(ctx context.Context, id stri
 		return err
 	}
 
+	oldProgress := piece.Progress
 	piece.Progress = progress
-	return s.pieceRepo.Update(ctx, id, piece)
+	err = s.pieceRepo.Update(ctx, id, piece)
+	if err != nil {
+		return err
+	}
+
+	// 🔥 进度变化时，触发订单进度计算和工作流状态更新
+	if oldProgress != progress {
+		go s.updateOrderProgressAndWorkflow(context.Background(), piece.OrderID, piece.ContractNo)
+	}
+
+	return nil
+}
+
+// updateOrderProgressAndWorkflow 更新订单进度并触发工作流状态转换
+func (s *cuttingService) updateOrderProgressAndWorkflow(ctx context.Context, orderID, contractNo string) {
+	// 1. 计算订单总体进度
+	pieces, _, err := s.pieceRepo.List(ctx, 1, 10000, orderID, contractNo, "", "")
+	if err != nil || len(pieces) == 0 {
+		fmt.Printf("❌ 获取裁片列表失败: %v\n", err)
+		return
+	}
+
+	// 计算加权平均进度
+	totalQuantity := 0
+	totalWeightedProgress := 0.0
+	completedCount := 0
+
+	for _, piece := range pieces {
+		totalQuantity += piece.Quantity
+		pieceProgress := float64(piece.Progress) / float64(piece.TotalProcess)
+		totalWeightedProgress += pieceProgress * float64(piece.Quantity)
+
+		if piece.Progress >= piece.TotalProcess {
+			completedCount++
+		}
+	}
+
+	var orderProgress float64
+	if totalQuantity > 0 {
+		orderProgress = totalWeightedProgress / float64(totalQuantity)
+	}
+
+	fmt.Printf("📊 订单进度计算: 订单=%s, 总件数=%d, 已完成=%d/%d, 进度=%.2f%%\n",
+		orderID, totalQuantity, completedCount, len(pieces), orderProgress*100)
+
+	// 2. 更新订单进度字段
+	err = s.orderRepo.Update(ctx, orderID, map[string]interface{}{
+		"$set": map[string]interface{}{
+			"progress":   orderProgress,
+			"updated_at": time.Now().Unix(),
+		},
+	})
+	if err != nil {
+		fmt.Printf("❌ 更新订单进度失败: %v\n", err)
+		return
+	}
+
+	// 3. 获取订单当前状态
+	order, err := s.orderRepo.Get(ctx, orderID)
+	if err != nil {
+		fmt.Printf("❌ 获取订单失败: %v\n", err)
+		return
+	}
+
+	// 4. 根据进度自动触发工作流状态转换
+	currentStatus := workflow.OrderStatus(order.Status)
+
+	// 如果进度达到100%且当前状态是"生产中"，自动完成订单
+	if orderProgress >= 1.0 && currentStatus == workflow.StatusProduction {
+		fmt.Printf("✅ 订单 %s 进度已达100%%，自动触发完成事件\n", orderID)
+
+		err = s.workflow.TransitionToAdvanced(
+			ctx,
+			orderID,
+			workflow.EventComplete,
+			"system",  // 操作者：系统自动
+			"",        // 不需要特定角色
+			"所有裁片已完成", // 原因
+			map[string]interface{}{
+				"progress":        orderProgress,
+				"completed_count": completedCount,
+				"total_pieces":    len(pieces),
+			},
+		)
+
+		if err != nil {
+			fmt.Printf("❌ 自动完成订单失败: %v\n", err)
+		} else {
+			fmt.Printf("🎉 订单 %s 已自动完成！\n", orderID)
+		}
+	}
 }

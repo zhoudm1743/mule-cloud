@@ -99,7 +99,7 @@ export function uploadFile(filePath, businessType = 'avatar') {
 		})
 		
 		uni.uploadFile({
-			url: 'https://dev.inzj.cn/api/admin/common/files/upload',
+			url: 'https://dev.inzj.cn/admin/common/files/upload',
 			filePath: filePath,
 			name: 'file',
 			formData: {

@@ -132,6 +132,7 @@ func main() {
 				tasks.GET("", transport.ListCuttingTasksHandler(cuttingSvc))                      // 裁剪任务列表
 				tasks.GET("/order/:order_id", transport.GetCuttingTaskByOrderHandler(cuttingSvc)) // 根据订单ID获取任务
 				tasks.GET("/:id", transport.GetCuttingTaskHandler(cuttingSvc))                    // 获取裁剪任务详情
+				tasks.DELETE("/:taskId/batches", transport.ClearTaskBatchesHandler(cuttingSvc))   // 清空任务的所有批次
 			}
 
 			// 裁剪批次路由

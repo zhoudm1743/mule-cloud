@@ -92,6 +92,38 @@
 			"navigationBarTextStyle": "white",
 			"navigationBarBackgroundColor": "#5EA3F2"
 		}
+	},
+	{
+		"path": "pages/member/profile/profile",
+		"style": {
+			"navigationBarTitleText": "个人档案",
+			"navigationBarTextStyle": "white",
+			"navigationBarBackgroundColor": "#5EA3F2"
+		}
+	},
+	{
+		"path": "pages/member/edit-contact/edit-contact",
+		"style": {
+			"navigationBarTitleText": "编辑联系信息",
+			"navigationBarTextStyle": "white",
+			"navigationBarBackgroundColor": "#5EA3F2"
+		}
+	},
+	{
+		"path": "pages/member/work-info/work-info",
+		"style": {
+			"navigationBarTitleText": "工作信息",
+			"navigationBarTextStyle": "white",
+			"navigationBarBackgroundColor": "#5EA3F2"
+		}
+	},
+	{
+		"path": "pages/member/skills/skills",
+		"style": {
+			"navigationBarTitleText": "技能证书",
+			"navigationBarTextStyle": "white",
+			"navigationBarBackgroundColor": "#5EA3F2"
+		}
 	}
 ],
 	"globalStyle": {

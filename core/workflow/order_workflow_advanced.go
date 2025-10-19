@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"mule-cloud/internal/repository"
+
+	"go.mongodb.org/mongo-driver/v2/bson"
 )
 
 // TransitionCondition 状态转换条件函数
@@ -14,11 +16,11 @@ type TransitionCondition func(ctx context.Context, orderID string, metadata map[
 
 // TransitionRule 增强的状态转换规则（支持条件）
 type TransitionRule struct {
-	From      OrderStatus
-	Event     OrderEvent
-	To        OrderStatus
-	Condition TransitionCondition // 转换条件（可选）
-	RequireRole string            // 需要的角色（可选）
+	From        OrderStatus
+	Event       OrderEvent
+	To          OrderStatus
+	Condition   TransitionCondition // 转换条件（可选）
+	RequireRole string              // 需要的角色（可选）
 }
 
 // RollbackRecord 回滚记录
@@ -40,7 +42,7 @@ var advancedTransitions = []TransitionRule{
 	{From: StatusOrdered, Event: EventStartCutting, To: StatusProduction, Condition: nil},
 	{From: StatusOrdered, Event: EventStartProduction, To: StatusProduction, Condition: nil},
 	{From: StatusProduction, Event: EventUpdateProgress, To: StatusProduction, Condition: nil},
-	
+
 	// 完成订单 - 需要进度达到100%
 	{
 		From:  StatusProduction,
@@ -54,21 +56,21 @@ var advancedTransitions = []TransitionRule{
 				}
 				return false, fmt.Sprintf("进度不足：当前%.1f%%，需要100%%", progress*100)
 			}
-			
+
 			// 如果没有传入进度，从数据库查询
 			orderRepo := repository.NewOrderRepository()
 			order, err := orderRepo.Get(ctx, orderID)
 			if err != nil {
 				return false, "无法获取订单信息"
 			}
-			
+
 			if order.Progress >= 1.0 {
 				return true, ""
 			}
 			return false, fmt.Sprintf("进度不足：当前%.1f%%，需要100%%", order.Progress*100)
 		},
 	},
-	
+
 	// 取消订单 - 需要管理员权限或特定角色
 	{
 		From:        StatusDraft,
@@ -105,7 +107,7 @@ func (w *OrderWorkflow) CanTransitionWithCondition(
 			if rule.RequireRole != "" && rule.RequireRole != userRole {
 				return false, fmt.Sprintf("需要角色: %s", rule.RequireRole)
 			}
-			
+
 			// 检查条件
 			if rule.Condition != nil {
 				canTransit, reason := rule.Condition(ctx, orderID, metadata)
@@ -113,11 +115,11 @@ func (w *OrderWorkflow) CanTransitionWithCondition(
 					return false, reason
 				}
 			}
-			
+
 			return true, ""
 		}
 	}
-	
+
 	return false, fmt.Sprintf("无效的状态转换: %d -> %s", currentStatus, event)
 }
 
@@ -166,11 +168,13 @@ func (w *OrderWorkflow) TransitionToAdvanced(
 	w.saveHistory(ctx, history)
 
 	// 更新数据库
-	err = w.orderRepo.Update(ctx, orderID, map[string]interface{}{
-		"$set": map[string]interface{}{
-			"status":     int(nextStatus),
-			"updated_at": time.Now().Unix(),
-		},
+	// 注意：orderRepo.Update 方法内部会自动包装 $set，这里直接传字段即可
+	// 🔥 重要：同时更新 status 和 workflow_state 字段以保持一致
+	workflowStateCode := w.getStateCodeFromStatus(nextStatus)
+	err = w.orderRepo.Update(ctx, orderID, bson.M{
+		"status":         int(nextStatus),
+		"workflow_state": workflowStateCode,
+		"updated_at":     time.Now().Unix(),
 	})
 	if err != nil {
 		return fmt.Errorf("更新订单状态失败: %v", err)
@@ -196,7 +200,7 @@ func (w *OrderWorkflow) RollbackLastTransition(
 	}
 
 	lastHistory := histories[0]
-	
+
 	// 检查是否可以回滚（已完成和已取消的订单不允许回滚）
 	if lastHistory.ToState == StatusCompleted || lastHistory.ToState == StatusCancelled {
 		return fmt.Errorf("订单状态为 %s，不允许回滚", GetStatusName(lastHistory.ToState))
@@ -243,9 +247,9 @@ func (w *OrderWorkflow) RollbackLastTransition(
 		Operator:  operator,
 		Timestamp: time.Now().Unix(),
 		Metadata: map[string]interface{}{
-			"is_rollback":        true,
-			"rollback_from":      lastHistory.ToState,
-			"original_event":     lastHistory.Event,
+			"is_rollback":    true,
+			"rollback_from":  lastHistory.ToState,
+			"original_event": lastHistory.Event,
 		},
 	}
 	w.saveHistory(ctx, rollbackHistory)
@@ -257,13 +261,13 @@ func (w *OrderWorkflow) RollbackLastTransition(
 func (w *OrderWorkflow) saveRollbackRecord(ctx context.Context, rollback RollbackRecord) {
 	rollbackKey := fmt.Sprintf("order:rollback:%s", rollback.OrderID)
 	rollbackJSON, _ := json.Marshal(rollback)
-	
+
 	// 使用List保存回滚记录
 	_ = w.redis.Client().LPush(ctx, rollbackKey, string(rollbackJSON)).Err()
-	
+
 	// 只保留最近50条回滚记录
 	_ = w.redis.Client().LTrim(ctx, rollbackKey, 0, 49).Err()
-	
+
 	// 设置过期时间为90天
 	_ = w.redis.Expire(ctx, rollbackKey, 90*24*time.Hour)
 }
@@ -271,11 +275,11 @@ func (w *OrderWorkflow) saveRollbackRecord(ctx context.Context, rollback Rollbac
 // GetRollbackHistory 获取回滚历史
 func (w *OrderWorkflow) GetRollbackHistory(ctx context.Context, orderID string, limit int64) ([]RollbackRecord, error) {
 	rollbackKey := fmt.Sprintf("order:rollback:%s", orderID)
-	
+
 	if limit <= 0 {
 		limit = 10
 	}
-	
+
 	results, err := w.redis.Client().LRange(ctx, rollbackKey, 0, limit-1).Result()
 	if err != nil {
 		return nil, err
@@ -321,17 +325,17 @@ func GetWorkflowDefinition() map[string]interface{} {
 			"to":    int(rule.To),
 			"event": string(rule.Event),
 		}
-		
+
 		if rule.Condition != nil {
 			transition["hasCondition"] = true
 			transition["conditionDesc"] = "需要满足特定条件"
 		}
-		
+
 		if rule.RequireRole != "" {
 			transition["requireRole"] = rule.RequireRole
 			transition["roleDesc"] = fmt.Sprintf("需要 %s 角色", rule.RequireRole)
 		}
-		
+
 		transitions = append(transitions, transition)
 	}
 
@@ -367,14 +371,14 @@ func GenerateMermaidDiagram() string {
 	diagram += "    style Production fill:#E6A23C,color:#fff\n"
 	diagram += "    style Completed fill:#67C23A,color:#fff\n"
 	diagram += "    style Cancelled fill:#F56C6C,color:#fff\n"
-	
+
 	return diagram
 }
 
 // GetTransitionRules 获取所有转换规则（用于前端展示）
 func GetTransitionRules() []map[string]interface{} {
 	rules := make([]map[string]interface{}, 0, len(advancedTransitions))
-	
+
 	for _, rule := range advancedTransitions {
 		ruleMap := map[string]interface{}{
 			"from":      int(rule.From),
@@ -383,18 +387,17 @@ func GetTransitionRules() []map[string]interface{} {
 			"to_name":   GetStatusName(rule.To),
 			"event":     string(rule.Event),
 		}
-		
+
 		if rule.Condition != nil {
 			ruleMap["has_condition"] = true
 		}
-		
+
 		if rule.RequireRole != "" {
 			ruleMap["require_role"] = rule.RequireRole
 		}
-		
+
 		rules = append(rules, ruleMap)
 	}
-	
+
 	return rules
 }
-

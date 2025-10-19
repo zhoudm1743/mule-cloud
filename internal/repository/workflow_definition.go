@@ -68,6 +68,7 @@ func (r *workflowDefinitionRepository) Update(ctx context.Context, id string, up
 }
 
 func (r *workflowDefinitionRepository) Get(ctx context.Context, id string) (*models.WorkflowDefinition, error) {
+	// 🔥 重要：workflow_definitions 的 _id 在数据库中是字符串类型，直接查询
 	filter := bson.M{"_id": id}
 
 	var workflow models.WorkflowDefinition
@@ -204,10 +205,24 @@ func (r *workflowInstanceRepository) Update(ctx context.Context, id string, upda
 }
 
 func (r *workflowInstanceRepository) Get(ctx context.Context, id string) (*models.WorkflowInstance, error) {
-	filter := bson.M{"_id": id}
+	// 🔥 重要：workflow_instances 的 _id 在数据库中是 ObjectId 类型
+	// 需要将字符串 ID 转换为 ObjectId
+	oid, err := bson.ObjectIDFromHex(id)
+	if err != nil {
+		// 如果转换失败，尝试直接使用字符串查询（兼容旧数据）
+		filter := bson.M{"_id": id}
+		var instance models.WorkflowInstance
+		err = r.getCollection(ctx).FindOne(ctx, filter).Decode(&instance)
+		if err != nil {
+			return nil, err
+		}
+		return &instance, nil
+	}
 
+	// 使用 ObjectId 查询
+	filter := bson.M{"_id": oid}
 	var instance models.WorkflowInstance
-	err := r.getCollection(ctx).FindOne(ctx, filter).Decode(&instance)
+	err = r.getCollection(ctx).FindOne(ctx, filter).Decode(&instance)
 	if err != nil {
 		return nil, err
 	}

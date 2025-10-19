@@ -181,11 +181,13 @@ func (w *OrderWorkflow) TransitionTo(
 	w.saveHistory(ctx, history)
 
 	// 更新数据库
+	// 注意：orderRepo.Update 方法内部会自动包装 $set，这里直接传字段即可
+	// 🔥 重要：同时更新 status 和 workflow_state 字段以保持一致
+	workflowStateCode := w.getStateCodeFromStatus(nextStatus)
 	err = w.orderRepo.Update(ctx, orderID, bson.M{
-		"$set": bson.M{
-			"status":     int(nextStatus),
-			"updated_at": time.Now().Unix(),
-		},
+		"status":         int(nextStatus),
+		"workflow_state": workflowStateCode,
+		"updated_at":     time.Now().Unix(),
 	})
 	if err != nil {
 		return fmt.Errorf("更新订单状态失败: %v", err)
@@ -298,6 +300,24 @@ func (w *OrderWorkflow) CancelOrder(ctx context.Context, orderID, operator, reas
 func (w *OrderWorkflow) InvalidateCache(ctx context.Context, orderID string) error {
 	cacheKey := w.getOrderCacheKey(orderID)
 	return w.redis.Del(ctx, cacheKey)
+}
+
+// getStateCodeFromStatus 将订单状态枚举转换为工作流状态代码
+func (w *OrderWorkflow) getStateCodeFromStatus(status OrderStatus) string {
+	switch status {
+	case StatusDraft:
+		return "draft"
+	case StatusOrdered:
+		return "ordered"
+	case StatusProduction:
+		return "production"
+	case StatusCompleted:
+		return "completed"
+	case StatusCancelled:
+		return "cancelled"
+	default:
+		return "draft"
+	}
 }
 
 // GetStatusName 获取状态名称

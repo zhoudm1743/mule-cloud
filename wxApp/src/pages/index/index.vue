@@ -3,12 +3,12 @@
 	<!-- 顶部欢迎区域 -->
 	<view class="welcome-section">
 		<view class="welcome-text">
-			<text class="greeting">你好，{{ userInfo.nickname || '微信用户' }}</text>
+			<text class="greeting">你好，{{ memberProfile?.name || userInfo.nickname || '微信用户' }}</text>
 			<text class="date">{{ currentDate }}</text>
 			
 		</view>
-		<text class="job-info" v-if="currentTenantDetail.job_number">
-				工号：{{ currentTenantDetail.job_number }}
+		<text class="job-info" v-if="memberProfile?.job_number || currentTenantDetail.job_number">
+				工号：{{ memberProfile?.job_number || currentTenantDetail.job_number }}
 			</text>
 	</view>
 
@@ -92,9 +92,11 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/store/modules/user'
+import { getProfile } from '@/api/member'
 import TabBar from '@/components/TabBar/TabBar.vue'
 
 const userStore = useUserStore()
+const memberProfile = ref(null)
 
 const userInfo = computed(() => userStore.userInfo || {})
 const currentTenant = computed(() => userStore.currentTenant)
@@ -133,6 +135,12 @@ onMounted(async () => {
 		})
 		return
 	}
+	
+	// 调试：检查 token 和租户信息
+	const token = uni.getStorageSync('token')
+	const currentTenant = uni.getStorageSync('currentTenant')
+	console.log('首页 onMounted - token:', token ? '已设置' : '未设置')
+	console.log('首页 onMounted - currentTenant:', currentTenant)
 
 	// 设置当前日期
 	const now = new Date()
@@ -144,11 +152,32 @@ onMounted(async () => {
 		await userStore.fetchUserInfo()
 	} catch (error) {
 		console.error('获取用户信息失败', error)
+		// 如果是未认证错误，跳转到登录页
+		if (error.message === '未认证') {
+			uni.reLaunch({ url: '/pages/login/login' })
+			return
+		}
 	}
+	
+	// 加载员工档案（独立处理，失败不影响页面）
+	await loadMemberProfile()
 
 	// 加载数据
 	loadData()
 })
+
+// 加载员工档案（静默加载）
+const loadMemberProfile = async () => {
+	try {
+		const res = await getProfile(true)  // 静默加载
+		if (res.code === 0) {
+			memberProfile.value = res.data
+		}
+	} catch (error) {
+		// 静默失败，不影响页面展示
+		console.log('暂未获取到员工档案信息')
+	}
+}
 
 // 加载数据
 const loadData = async () => {

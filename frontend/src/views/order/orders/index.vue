@@ -3,7 +3,8 @@ import type { DataTableColumns } from 'naive-ui'
 import CopyText from '@/components/custom/CopyText.vue'
 import { useBoolean } from '@/hooks'
 import { copyOrder, createCuttingTask, deleteOrder, fetchCuttingTaskByOrderId, fetchOrderList } from '@/service/api/order'
-import { NAlert, NButton, NFormItem, NImage, NInput, NPopconfirm, NRadio, NRadioGroup, NSpace, NSwitch, NTag, NText } from 'naive-ui'
+import { NAlert, NButton, NDropdown, NFormItem, NImage, NInput, NPopconfirm, NRadio, NRadioGroup, NSpace, NSwitch, NTag, NText } from 'naive-ui'
+import type { DropdownOption } from 'naive-ui'
 import { useRouter } from 'vue-router'
 import TableModal from './components/TableModal.vue'
 import ProgressDrawer from './components/ProgressDrawer.vue'
@@ -265,9 +266,67 @@ const columns: DataTableColumns<Api.Order.OrderInfo> = [
   {
     title: '操作',
     key: 'actions',
-    width: 350,
+    width: 190,
     fixed: 'right',
     render: (row) => {
+      const options: DropdownOption[] = [
+        {
+          label: '详情',
+          key: 'view',
+          props: {
+            onClick: () => tableModalRef.value?.openModal('view', row),
+          },
+        },
+        {
+          label: '编辑',
+          key: 'edit',
+          props: {
+            onClick: () => tableModalRef.value?.openModal('edit', row),
+          },
+        },
+        {
+          label: '裁剪',
+          key: 'cutting',
+          props: {
+            onClick: () => handleCreateCutting(row),
+          },
+        },
+        {
+          label: '进度',
+          key: 'progress',
+          disabled: row.status < 2,
+          props: {
+            onClick: () => handleViewProgress(row),
+          },
+        },
+        {
+          label: '复制',
+          key: 'copy',
+          props: {
+            onClick: () => openCopyModal(row.id),
+          },
+        },
+        {
+          type: 'divider',
+          key: 'd1',
+        },
+        {
+          label: '删除',
+          key: 'delete',
+          props: {
+            onClick: () => {
+              window.$dialog.warning({
+                title: '确认删除',
+                content: '确定要删除这个订单吗？',
+                positiveText: '确定',
+                negativeText: '取消',
+                onPositiveClick: () => deleteHandler(row.id),
+              })
+            },
+          },
+        },
+      ]
+
       return (
         <NSpace>
           <NButton
@@ -283,33 +342,11 @@ const columns: DataTableColumns<Api.Order.OrderInfo> = [
           >
             编辑
           </NButton>
-          <NButton
-            size={'small'}
-            type={'info'}
-            onClick={() => handleCreateCutting(row)}
-          >
-            裁剪
-          </NButton>
-          <NButton
-            size={'small'}
-            type={'success'}
-            onClick={() => handleViewProgress(row)}
-            disabled={row.status < 2}
-          >
-            进度
-          </NButton>
-          <NButton
-            size={'small'}
-            onClick={() => openCopyModal(row.id)}
-          >
-            复制
-          </NButton>
-          <NPopconfirm onPositiveClick={() => deleteHandler(row.id)}>
-            {{
-              default: () => '确定删除吗？',
-              trigger: () => <NButton size={'small'} type={'error'}>删除</NButton>,
-            }}
-          </NPopconfirm>
+          <NDropdown trigger="click" options={options}>
+            <NButton size={'small'}>
+              更多操作
+            </NButton>
+          </NDropdown>
         </NSpace>
       )
     },

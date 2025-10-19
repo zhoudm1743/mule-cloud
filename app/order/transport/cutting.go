@@ -194,6 +194,26 @@ func DeleteCuttingBatchHandler(svc services.ICuttingService) gin.HandlerFunc {
 	}
 }
 
+// ClearTaskBatchesHandler 清空任务批次处理器
+func ClearTaskBatchesHandler(svc services.ICuttingService) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		taskID := c.Param("taskId")
+		if taskID == "" {
+			response.Error(c, "任务ID不能为空")
+			return
+		}
+
+		ep := endpoint.ClearTaskBatchesEndpoint(svc)
+		resp, err := ep(c.Request.Context(), taskID)
+		if err != nil {
+			response.Error(c, err.Error())
+			return
+		}
+
+		response.Success(c, resp)
+	}
+}
+
 // PrintCuttingBatchHandler 打印裁剪批次处理器
 func PrintCuttingBatchHandler(svc services.ICuttingService) gin.HandlerFunc {
 	return func(c *gin.Context) {

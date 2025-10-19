@@ -4,11 +4,11 @@
 		<view class="user-section">
 			<view class="user-info" @click="handleEditProfile">
 				<view class="avatar-wrapper">
-					<image :src="userInfo?.avatar || '/static/logo.png'" mode="aspectFill"></image>
+					<image :src="memberProfile?.avatar || userInfo?.avatar || '/static/logo.png'" mode="aspectFill"></image>
 				</view>
 				<view class="user-detail">
-					<view class="user-name">{{ userInfo?.nickname || '微信用户' }}</view>
-					<view class="user-phone">{{ userInfo?.phone || '未绑定手机号' }}</view>
+					<view class="user-name">{{ memberProfile?.name || userInfo?.nickname || '微信用户' }}</view>
+					<view class="user-phone">工号：{{ memberProfile?.job_number || '未设置' }}</view>
 				</view>
 				<u-icon name="arrow-right" :size="32" color="#fff"></u-icon>
 			</view>
@@ -29,31 +29,42 @@
 			</view>
 		</view>
 
-		<!-- 功能列表 -->
-		<view class="menu-list">
-			<!-- 手机号 -->
-			<view class="menu-item" @click="handleBindPhone" v-if="!userInfo?.phone">
-				<view class="item-icon">
-					<u-icon name="phone-fill" :size="36" color="#5EA3F2"></u-icon>
-				</view>
-				<view class="item-text">绑定手机号</view>
-				<u-icon name="arrow-right" :size="28" color="#ccc"></u-icon>
+	<!-- 功能列表 -->
+	<view class="menu-list">
+		<!-- 个人档案 -->
+		<view class="menu-item" @click="handleProfile">
+			<view class="item-icon">
+				<u-icon name="file-text-fill" :size="36" color="#5EA3F2"></u-icon>
 			</view>
-			
-			<view class="menu-item" @click="handleChangePhone" v-else>
-				<view class="item-icon">
-					<u-icon name="phone-fill" :size="36" color="#5EA3F2"></u-icon>
-				</view>
-				<view class="item-content">
-					<view class="item-text">手机号</view>
-					<view class="item-desc">{{ userInfo.phone }}</view>
-				</view>
-				<u-icon name="arrow-right" :size="28" color="#ccc"></u-icon>
+			<view class="item-text">个人档案</view>
+			<u-icon name="arrow-right" :size="28" color="#ccc"></u-icon>
+		</view>
+
+		<view class="divider"></view>
+
+		<!-- 手机号
+		<view class="menu-item" @click="handleBindPhone" v-if="!userInfo?.phone">
+			<view class="item-icon">
+				<u-icon name="phone-fill" :size="36" color="#5EA3F2"></u-icon>
 			</view>
+			<view class="item-text">绑定手机号</view>
+			<u-icon name="arrow-right" :size="28" color="#ccc"></u-icon>
+		</view>
+		
+	<view class="menu-item" @click="handleChangePhone" v-else>
+		<view class="item-icon">
+			<u-icon name="phone-fill" :size="36" color="#5EA3F2"></u-icon>
+		</view>
+		<view class="item-content">
+			<view class="item-text">手机号</view>
+			<view class="item-desc">{{ userInfo.phone }}</view>
+		</view>
+		<u-icon name="arrow-right" :size="28" color="#ccc"></u-icon>
+	</view>
 
-			<view class="divider"></view>
+		<view class="divider"></view> -->
 
-			<view class="menu-item" @click="handleClearCache">
+			<!-- <view class="menu-item" @click="handleClearCache">
 				<view class="item-icon">
 					<u-icon name="trash-fill" :size="36" color="#5EA3F2"></u-icon>
 				</view>
@@ -69,7 +80,7 @@
 				<view class="item-text">检查更新</view>
 				<view class="item-value">v1.0.0</view>
 				<u-icon name="arrow-right" :size="28" color="#ccc"></u-icon>
-			</view>
+			</view> -->
 
 			<view class="divider"></view>
 
@@ -148,11 +159,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useUserStore } from '@/store/modules/user'
 import { switchTenant, updateUserInfo, bindPhone as bindPhoneAPI, unbindPhone as unbindPhoneAPI } from '@/api/auth'
+import { getProfile } from '@/api/member'
 import TabBar from '@/components/TabBar/TabBar.vue'
 
 const userStore = useUserStore()
 const showTenantSelector = ref(false)
 const cacheSize = ref('0KB')
+const memberProfile = ref(null)
 
 const userInfo = computed(() => userStore.userInfo || {})
 const currentTenant = computed(() => userStore.currentTenant)
@@ -163,9 +176,24 @@ onMounted(async () => {
 		await userStore.fetchUserInfo().catch(err => {
 			console.error('获取用户信息失败', err)
 		})
+		// 获取员工档案信息
+		await loadMemberProfile()
 	}
 	getCacheSize()
 })
+
+// 加载员工档案（静默加载）
+const loadMemberProfile = async () => {
+	try {
+		const res = await getProfile(true)  // 静默加载
+		if (res.code === 0) {
+			memberProfile.value = res.data
+		}
+	} catch (error) {
+		// 静默失败，不影响页面展示
+		console.log('暂未获取到员工档案信息')
+	}
+}
 
 const getCacheSize = () => {
 	try {
@@ -180,6 +208,12 @@ const getCacheSize = () => {
 const handleEditProfile = () => {
 	uni.navigateTo({
 		url: '/pages/edit-profile/edit-profile'
+	})
+}
+
+const handleProfile = () => {
+	uni.navigateTo({
+		url: '/pages/member/profile/profile'
 	})
 }
 
@@ -638,3 +672,4 @@ const handleLogout = () => {
 	}
 }
 </style>
+
