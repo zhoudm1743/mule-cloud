@@ -422,10 +422,89 @@ func (s *AuthService) GetUserRoutes(ctx context.Context, userID string) (*dto.Ge
 		return nil, ErrUserNotFound
 	}
 
-	// 系统超级管理员（角色包含 "super"）拥有所有菜单权限
+	// ✅ 系统超级管理员（角色包含 "super"）
+	// 检查是否切换到了特定租户（userTenantCode != "" && userTenantCode != "system"）
 	for _, role := range admin.Roles {
 		if role == "super" {
-			// 调用 perms 服务获取所有菜单
+			// ✅ 如果超管切换到了特定租户，返回该租户的菜单
+			if userTenantCode != "" && userTenantCode != "system" {
+				logger.Info("超管切换租户，返回租户菜单",
+					zap.String("user_id", userID),
+					zap.String("tenant_code", userTenantCode))
+
+				// 获取租户信息
+				tenant, err := s.tenantRepo.GetByCode(context.Background(), userTenantCode)
+				if err != nil || tenant == nil {
+					logger.Error("获取租户信息失败", zap.Error(err))
+					return nil, fmt.Errorf("获取租户信息失败")
+				}
+
+				// 获取所有菜单
+				allMenus, err := s.fetchAllMenusFromSystem()
+				if err != nil {
+					return nil, fmt.Errorf("获取菜单失败: %w", err)
+				}
+
+				// 过滤：返回租户拥有的菜单 + 自动添加父级菜单
+				tenantMenuMap := make(map[string]bool)
+				for _, menuName := range tenant.Menus {
+					tenantMenuMap[menuName] = true
+				}
+
+				// 创建菜单名称到完整菜单对象的映射
+				menuNameToItem := make(map[string]dto.RouteItem)
+				menuIDToName := make(map[string]string)
+				for _, menu := range allMenus {
+					menuNameToItem[menu.Name] = menu
+					menuIDToName[menu.ID] = menu.Name
+				}
+
+				// 自动添加父级菜单（递归）
+				var addParentMenus func(string)
+				addParentMenus = func(menuName string) {
+					menu, exists := menuNameToItem[menuName]
+					if !exists {
+						return
+					}
+
+					// 标记当前菜单
+					tenantMenuMap[menuName] = true
+
+					// 如果有父菜单，递归添加
+					if menu.PID != nil && *menu.PID != "" {
+						// 找到父菜单的名称
+						if parentName, ok := menuIDToName[*menu.PID]; ok {
+							addParentMenus(parentName)
+						}
+					}
+				}
+
+				// 为租户的每个菜单，递归添加其父级
+				for _, menuName := range tenant.Menus {
+					addParentMenus(menuName)
+				}
+
+				// 构建最终的菜单列表
+				var tenantMenus []dto.RouteItem
+				for _, menu := range allMenus {
+					if tenantMenuMap[menu.Name] {
+						tenantMenus = append(tenantMenus, menu)
+					}
+				}
+
+				logger.Info("超管切换租户后的菜单",
+					zap.String("tenant_code", userTenantCode),
+					zap.Strings("tenant_menus", tenant.Menus),
+					zap.Int("original_count", len(tenant.Menus)),
+					zap.Int("completed_count", len(tenantMenus)))
+
+				return &dto.GetUserRoutesResponse{
+					Routes: tenantMenus,
+				}, nil
+			}
+
+			// ✅ 超管未切换租户，返回所有菜单
+			logger.Info("超管未切换租户，返回所有菜单", zap.String("user_id", userID))
 			menus, err := s.fetchAllMenusFromSystem()
 			if err != nil {
 				return nil, fmt.Errorf("获取菜单失败: %w", err)

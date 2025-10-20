@@ -4,16 +4,16 @@ import "mule-cloud/internal/models"
 
 // StyleListRequest 款式列表请求
 type StyleListRequest struct {
-	ID        string `uri:"id" query:"id"`
-	StyleNo   string `query:"style_no"`   // 款号
-	StyleName string `query:"style_name"` // 款名
-	Category  string `query:"category"`   // 分类
-	Season    string `query:"season"`     // 季节
-	Year      string `query:"year"`       // 年份
-	Status    int    `query:"status"`     // 状态
+	ID        string `uri:"id" form:"id"`
+	StyleNo   string `form:"style_no"`   // 款号
+	StyleName string `form:"style_name"` // 款名
+	Category  string `form:"category"`   // 分类
+	Season    string `form:"season"`     // 季节
+	Year      string `form:"year"`       // 年份
+	Status    int    `form:"status"`     // 状态
 
-	Page     int64 `query:"page"`
-	PageSize int64 `query:"page_size"`
+	Page     int64 `form:"page"`
+	PageSize int64 `form:"page_size"`
 }
 
 // StyleCreateRequest 创建款式请求

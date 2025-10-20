@@ -4,11 +4,11 @@ import "mule-cloud/internal/models"
 
 // TenantListRequest 租户列表请求
 type TenantListRequest struct {
-	ID       string `uri:"id" query:"id"`
-	Code     string `query:"code"`
-	Name     string `query:"name"`
-	Page     int64  `query:"page"`
-	PageSize int64  `query:"page_size"`
+	ID       string `uri:"id" form:"id"`
+	Code     string `form:"code"`
+	Name     string `form:"name"`
+	Page     int64  `form:"page"`
+	PageSize int64  `form:"page_size"`
 }
 
 // TenantCreateRequest 创建租户请求

@@ -4,15 +4,15 @@ import "mule-cloud/internal/models"
 
 // AdminListRequest 管理员请求
 type AdminListRequest struct {
-	ID       string `uri:"id" query:"id"`
-	Phone    string `query:"phone"`
-	Email    string `query:"email"`
-	Nickname string `query:"nickname"`
-	TenantID string `query:"tenant_id"` // 租户ID过滤
-	Status   *int   `query:"status"`
+	ID       string `uri:"id" form:"id"`
+	Phone    string `form:"phone"`
+	Email    string `form:"email"`
+	Nickname string `form:"nickname"`
+	TenantID string `form:"tenant_id"` // 租户ID过滤
+	Status   *int   `form:"status"`
 
-	Page     int64 `query:"page"`
-	PageSize int64 `query:"page_size"`
+	Page     int64 `form:"page"`
+	PageSize int64 `form:"page_size"`
 }
 
 type AdminCreateRequest struct {

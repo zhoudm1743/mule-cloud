@@ -13,20 +13,23 @@ interface iconPorps {
 }
 const { size = 18, icon } = defineProps<iconPorps>()
 
+// 在组件外部缓存 SVG 导入结果，避免每次都重新创建
+const svgModules = import.meta.glob<string>('@/assets/svg-icons/*.svg', {
+  query: '?raw',
+  import: 'default',
+  eager: true,
+})
+
 const isLocal = computed(() => {
   return icon && icon.startsWith('local:')
 })
 
-function getLocalIcon(icon: string) {
+// 使用 computed 缓存本地图标的获取结果
+const localIconContent = computed(() => {
+  if (!icon || !isLocal.value) return ''
   const svgName = icon.replace('local:', '')
-  const svg = import.meta.glob<string>('@/assets/svg-icons/*.svg', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-  })
-
-  return svg[`/src/assets/svg-icons/${svgName}.svg`]
-}
+  return svgModules[`/src/assets/svg-icons/${svgName}.svg`] || ''
+})
 </script>
 
 <template>
@@ -37,7 +40,7 @@ function getLocalIcon(icon: string) {
     :color="color"
   >
     <template v-if="isLocal">
-      <i v-html="getLocalIcon(icon)" />
+      <i v-html="localIconContent" />
     </template>
     <template v-else>
       <Icon :icon="icon" />

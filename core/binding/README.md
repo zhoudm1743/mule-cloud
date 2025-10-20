@@ -270,7 +270,7 @@ type OrderCreateRequest struct {
     TenantID string `uri:"tenant_id" binding"required"`
     
     // Query 参数
-    Source string `query:"source" binding"oneof=web app h5"`
+    Source string `form:"source" binding"oneof=web app h5"`
     
     // JSON Body 参数
     ContractNo   string  `json:"contract_no" binding"required,len=12"`

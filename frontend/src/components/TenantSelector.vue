@@ -92,9 +92,6 @@ defineExpose({
           <n-icon><icon-park-outline-building-four /></n-icon>
         </template>
       </n-select>
-      <n-text v-if="selectedTenantId" type="warning" depth="3">
-        当前正在管理该租户的数据
-      </n-text>
     </n-space>
   </div>
 </template>

@@ -8,10 +8,10 @@ type SizeGetRequest struct {
 }
 
 type SizeListRequest struct {
-	Value    string `query:"value"`
-	ID       string `uri:"id" query:"id"`
-	Page     int64  `query:"page"`
-	PageSize int64  `query:"page_size"`
+	Value    string `form:"value"`
+	ID       string `uri:"id" form:"id"`
+	Page     int64  `form:"page"`
+	PageSize int64  `form:"page_size"`
 }
 
 type SizeCreateRequest struct {

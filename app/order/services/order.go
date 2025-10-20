@@ -65,6 +65,7 @@ func (s *OrderService) List(ctx context.Context, req dto.OrderListRequest) ([]mo
 	}
 	if req.ContractNo != "" {
 		filter["contract_no"] = bson.M{"$regex": req.ContractNo, "$options": "i"}
+		fmt.Printf("🔍 添加合同号过滤: %v\n", filter["contract_no"])
 	}
 	if req.StyleNo != "" {
 		filter["style_no"] = bson.M{"$regex": req.StyleNo, "$options": "i"}

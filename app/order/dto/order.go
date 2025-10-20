@@ -4,21 +4,21 @@ import "mule-cloud/internal/models"
 
 // OrderListRequest 订单列表请求
 type OrderListRequest struct {
-	ID          string `uri:"id" query:"id"`
-	ContractNo  string `query:"contract_no"`   // 合同号
-	StyleNo     string `query:"style_no"`      // 款号
-	CustomerID  string `query:"customer_id"`   // 客户ID
-	SalesmanID  string `query:"salesman_id"`   // 业务员ID
-	OrderTypeID string `query:"order_type_id"` // 订单类型ID
-	Status      int    `query:"status"`        // 状态
-	StartDate   string `query:"start_date"`    // 开始日期（交货日期范围）
-	EndDate     string `query:"end_date"`      // 结束日期
-	OrderStart  string `query:"order_start"`   // 下单时间范围开始
-	OrderEnd    string `query:"order_end"`     // 下单时间范围结束
-	Remark      string `query:"remark"`        // 备注
+	ID          string `uri:"id" form:"id"`
+	ContractNo  string `form:"contract_no"`   // 合同号
+	StyleNo     string `form:"style_no"`      // 款号
+	CustomerID  string `form:"customer_id"`   // 客户ID
+	SalesmanID  string `form:"salesman_id"`   // 业务员ID
+	OrderTypeID string `form:"order_type_id"` // 订单类型ID
+	Status      int    `form:"status"`        // 状态
+	StartDate   string `form:"start_date"`    // 开始日期（交货日期范围）
+	EndDate     string `form:"end_date"`      // 结束日期
+	OrderStart  string `form:"order_start"`   // 下单时间范围开始
+	OrderEnd    string `form:"order_end"`     // 下单时间范围结束
+	Remark      string `form:"remark"`        // 备注
 
-	Page     int64 `query:"page"`
-	PageSize int64 `query:"page_size"`
+	Page     int64 `form:"page"`
+	PageSize int64 `form:"page_size"`
 }
 
 // OrderCreateRequest 创建订单请求（步骤1：基础信息）

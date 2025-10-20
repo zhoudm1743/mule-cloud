@@ -23,6 +23,7 @@ $services = [ordered]@{
     "order"      = @{ Name = "Order";      Path = "cmd/order/main.go";      Port = 8085; Color = "White"; Process = $null }
     "production" = @{ Name = "Production"; Path = "cmd/production/main.go"; Port = 8008; Color = "DarkYellow"; Process = $null }
     "miniapp"    = @{ Name = "Miniapp";    Path = "cmd/miniapp/main.go";    Port = 8086; Color = "White"; Process = $null }
+    "system"     = @{ Name = "System";     Path = "cmd/system/main.go";     Port = 8089; Color = "DarkCyan"; Process = $null }
 }
 
 # 清理所有服务进程

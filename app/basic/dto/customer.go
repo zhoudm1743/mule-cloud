@@ -4,11 +4,11 @@ import "mule-cloud/internal/models"
 
 // CustomerRequest 客户请求
 type CustomerListRequest struct {
-	ID    string `uri:"id" query:"id"`
-	Value string `query:"value"`
+	ID    string `uri:"id" form:"id"`
+	Value string `form:"value"`
 
-	Page     int64 `query:"page"`
-	PageSize int64 `query:"page_size"`
+	Page     int64 `form:"page"`
+	PageSize int64 `form:"page_size"`
 }
 
 type CustomerCreateRequest struct {
