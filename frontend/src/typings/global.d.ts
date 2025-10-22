@@ -44,6 +44,8 @@ declare namespace Storage {
     loginAccount: any
     /* 存储当前语言 */
     lang: App.lang
+    /* 存储选择的租户代码 */
+    selected_tenant_code: string
   }
 }
 

@@ -87,11 +87,7 @@ defineExpose({
         clearable
         style="width: 250px"
         @update:value="onTenantChange"
-      >
-        <template #prefix>
-          <n-icon><icon-park-outline-building-four /></n-icon>
-        </template>
-      </n-select>
+      />
     </n-space>
   </div>
 </template>
